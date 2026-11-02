@@ -394,6 +394,53 @@ def cmd_theme_dump(a):
     return 0
 
 
+# ---------------------------------------------------------- install-theme / names
+
+def cmd_install_theme(a):
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import build_theme
+    font = Path(a.font)
+    if not font.is_file():
+        sys.exit("Font non trovato: %s (scaricalo da https://mbrserver.com/topaz.ttf o usa --font)" % font)
+    sd = Path(a.sd)
+    base = sd / "MUOS" / "theme" / a.base if a.base else None
+    out = BUILD / "theme"
+    theme = build_theme.build(font, out, a.name, base_theme=base)
+    print("Tema generato in %s" % theme)
+    dest = sd / "MUOS" / "theme" / a.name
+    if not a.apply:
+        print("Simulazione: andrebbe copiato in %s. Aggiungi --apply." % dest)
+        return 0
+    if dest.exists():
+        shutil.rmtree(dest)
+    shutil.copytree(theme, dest)
+    print("Installato in %s. Su muOS: Configuration > Customisation > Theme > %s" % (dest, a.name))
+    return 0
+
+
+def cmd_install_names(a):
+    sd = Path(a.sd)
+    path = sd / "MUOS" / "info" / "name" / "global.json"
+    names = {Path(s["rom"]["file"]).stem: s["title"].upper() for s in kept()}
+    data = {}
+    if path.is_file():
+        data = json.loads(path.read_text(encoding="utf-8"))
+    new = {k: v for k, v in names.items() if data.get(k) != v}
+    for k, v in new.items():
+        print("%s -> %s" % (k, v))
+    print("\n%d nomi da scrivere in %s" % (len(new), path))
+    if not a.apply:
+        print("Simulazione: aggiungi --apply.")
+        return 0
+    if path.is_file():
+        shutil.copy2(path, str(path) + ".bak")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data.update(names)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    print("Fatto (copia di sicurezza: global.json.bak)")
+    return 0
+
+
 # ------------------------------------------------------------------------ main
 
 def main():
@@ -423,6 +470,11 @@ def main():
     p = add("install-covers", cmd_install_covers, "copia le copertine nel catalogo di muOS", apply=True)
     p.add_argument("--covers", default=str(BUILD / "covers"))
     p.add_argument("--create", action="store_true", help="crea le cartelle del catalogo se mancano")
+    p = add("install-theme", cmd_install_theme, "genera e installa il tema MBR Terminal", apply=True)
+    p.add_argument("--font", default="topaz.ttf", help="percorso di topaz.ttf (default: %(default)s)")
+    p.add_argument("--name", default="MBR Terminal")
+    p.add_argument("--base", default="GB Dark", help="tema da cui copiare i suoni ('' per nessuno)")
+    add("install-names", cmd_install_names, "scrive i titoli dei brani come nomi dei giochi", apply=True)
     p = add("theme-dump", cmd_theme_dump, "descrive un tema muOS esistente da usare come modello")
     p.add_argument("--name", help="nome del tema (senza: elenca i temi installati)")
     p.add_argument("--max-kb", type=int, default=300, help="tetto ai file di testo inclusi (default: %(default)s)")

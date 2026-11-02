@@ -13,13 +13,14 @@ Pensato per RG35XX Plus con muOS 2606, preparato da una Steam Deck in modalità 
 | Provato su muOS reale | **non ancora** |
 | Download delle miniature da YouTube | **non ancora provato** (nei test erano immagini finte) |
 | Nomi delle cartelle del catalogo muOS (`data/muos.json`) | verificati su muOS 2606 |
-| Pacchetto del tema (font Topaz, colori del sito) | da fare dopo `inspect` |
+| Tema "MBR Terminal" (font Topaz, colori del sito), `install-theme` e `install-names` | generato e provato su scheda simulata; **non ancora su muOS reale** |
 | Musica del brano in riproduzione automatica | da fare, serve una fonte audio legittima |
 
 ## Cosa serve
 
 - Python 3.8 o superiore (c'è già su SteamOS)
-- Pillow, solo per `covers`: `pip install --user pillow`
+- Pillow, per `covers` e `install-theme`: `pip install --user pillow`
+- Node.js (comando `npx`), solo per `install-theme`: converte il font nel formato di muOS
 - la scheda SD di muOS montata (default `/run/media/deck/MustardOS`, cambiabile con `--sd` o con la variabile `MBR_SD`)
 
 ## Uso
@@ -43,6 +44,9 @@ python3 scripts/mbr.py install-covers --apply      # copia i PNG nel catalogo di
 
 python3 scripts/mbr.py theme-dump                  # elenca i temi installati
 python3 scripts/mbr.py theme-dump --name "GB Dark" # descrive un tema da usare come modello (build/theme-dump.txt)
+
+python3 scripts/mbr.py install-theme --font topaz.ttf --apply   # genera e installa il tema MBR Terminal
+python3 scripts/mbr.py install-names --apply                    # i titoli dei brani come nomi dei giochi
 
 python3 scripts/mbr.py restore --apply   # rimette tutto com'era
 ```
