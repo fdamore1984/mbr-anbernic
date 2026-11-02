@@ -55,7 +55,7 @@ python3 scripts/mbr.py restore --apply   # rimette tutto com'era
 2. Se i nomi dei file sono diversi, correggi il campo `rom` in `data/songs.json`.
 3. Lancia `inspect` e confronta con `data/muos.json`, poi procedi con `hide`, `covers` e `install-covers`.
 
-`covers` accetta `--size 640x480` (default) e `--fit cover|contain`; usa la misura delle copertine che risulta da `inspect`.
+`covers` accetta `--size` (default `282x216`, la misura delle copertine che muOS 2606 ha già nel catalogo) e `--fit cover|contain`.
 
 ## Cosa non è nel repository
 

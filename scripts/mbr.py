@@ -417,7 +417,7 @@ def main():
     add("restore", cmd_restore, "rimette a posto i giochi nascosti", apply=True)
     p = add("covers", cmd_covers, "scarica le miniature e prepara le copertine PNG", sd=False)
     p.add_argument("--out", default=str(BUILD / "covers"))
-    p.add_argument("--size", default="640x480")
+    p.add_argument("--size", default="282x216", help="misura delle copertine gia' presenti in muOS (default: %(default)s)")
     p.add_argument("--fit", choices=["cover", "contain"], default="cover")
     p.add_argument("--only-kept", action="store_true", help="solo i brani con un gioco")
     p = add("install-covers", cmd_install_covers, "copia le copertine nel catalogo di muOS", apply=True)
