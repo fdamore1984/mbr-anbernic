@@ -324,6 +324,76 @@ def cmd_install_covers(a):
     return 0
 
 
+# ------------------------------------------------------------------- theme-dump
+
+TEXT_EXT = {".ini", ".txt", ".json", ".cfg", ".sh", ".md", ".html", ".xml"}
+IMG_EXT = {".png", ".jpg", ".jpeg", ".bmp", ".gif"}
+
+
+def image_size(path):
+    try:
+        from PIL import Image
+        with Image.open(path) as im:
+            return "%dx%d" % im.size
+    except Exception:
+        return None
+
+
+def cmd_theme_dump(a):
+    sd = Path(a.sd)
+    base = sd / "MUOS" / "theme"
+    if not base.is_dir():
+        sys.exit("Cartella dei temi non trovata: %s" % base)
+    themes = sorted(p.name for p in base.iterdir() if p.is_dir())
+    if a.name not in themes:
+        print("Temi disponibili:\n  " + "\n  ".join(themes))
+        return 2 if a.name else 0
+    theme = base / a.name
+    budget = a.max_kb * 1024
+    files = [p for p in sorted(theme.rglob("*")) if p.is_file()]
+    out = ["# Tema %s: %d file" % (a.name, len(files))]
+    for p in files:
+        out.append("%8d  %s" % (p.stat().st_size, p.relative_to(theme).as_posix()))
+    out += ["", "# Contenuto dei file di testo (max 20 KB ciascuno)"]
+    for p in files:
+        if p.suffix.lower() in TEXT_EXT and p.stat().st_size <= 20000 and budget > 0:
+            text = p.read_text(encoding="utf-8", errors="replace")
+            budget -= len(text)
+            out += ["=== %s ===" % p.relative_to(theme).as_posix(), text.rstrip(), ""]
+    out += ["# Immagini (dimensioni) e altri file (primi 16 byte in esadecimale)"]
+    for p in files:
+        rel = p.relative_to(theme).as_posix()
+        ext = p.suffix.lower()
+        if ext in IMG_EXT:
+            out.append("%-10s %s" % (image_size(p) or "?", rel))
+        elif ext not in TEXT_EXT:
+            with open(p, "rb") as f:
+                out.append("%s  %s" % (f.read(16).hex(), rel))
+    muos = load_json(MUOS_FILE)
+    out += ["", "# Copertine gia' presenti nel catalogo (prime 3 per sistema)"]
+    for system, cat_name in muos["systems"].items():
+        box = sd / muos["catalogue_root"] / cat_name / muos["box_dir"]
+        pngs = sorted(box.glob("*.png")) if box.is_dir() else []
+        out.append("%s (%d file)" % (cat_name, len(pngs)))
+        for p in pngs[:3]:
+            out.append("  %-10s %s" % (image_size(p) or "?", p.name))
+    for name in ("global.json", "folder.json", "tag.txt"):
+        p = sd / "MUOS" / "info" / "name" / name
+        if p.is_file():
+            out += ["", "# MUOS/info/name/%s (primi 3000 caratteri)" % name,
+                    p.read_text(encoding="utf-8", errors="replace")[:3000]]
+    music = sd / "MUOS" / "music"
+    if music.is_dir():
+        out += ["", "# MUOS/music"]
+        out += ["%8d  %s" % (p.stat().st_size, p.name) for p in sorted(music.iterdir()) if p.is_file()]
+    text = "\n".join(out) + "\n"
+    BUILD.mkdir(exist_ok=True)
+    dest = BUILD / "theme-dump.txt"
+    dest.write_text(text, encoding="utf-8")
+    print("Salvato in %s (%d righe, %d KB)" % (dest, len(out), len(text) // 1024))
+    return 0
+
+
 # ------------------------------------------------------------------------ main
 
 def main():
@@ -353,6 +423,9 @@ def main():
     p = add("install-covers", cmd_install_covers, "copia le copertine nel catalogo di muOS", apply=True)
     p.add_argument("--covers", default=str(BUILD / "covers"))
     p.add_argument("--create", action="store_true", help="crea le cartelle del catalogo se mancano")
+    p = add("theme-dump", cmd_theme_dump, "descrive un tema muOS esistente da usare come modello")
+    p.add_argument("--name", help="nome del tema (senza: elenca i temi installati)")
+    p.add_argument("--max-kb", type=int, default=300, help="tetto ai file di testo inclusi (default: %(default)s)")
 
     args = ap.parse_args()
     return args.fn(args)

@@ -12,7 +12,7 @@ Pensato per RG35XX Plus con muOS 2606, preparato da una Steam Deck in modalità 
 | `check`, `hide`, `restore`, `covers`, `install-covers` | provati su una scheda simulata con 175 file |
 | Provato su muOS reale | **non ancora** |
 | Download delle miniature da YouTube | **non ancora provato** (nei test erano immagini finte) |
-| Nomi delle cartelle del catalogo muOS (`data/muos.json`) | **da verificare** con `inspect` |
+| Nomi delle cartelle del catalogo muOS (`data/muos.json`) | verificati su muOS 2606 |
 | Pacchetto del tema (font Topaz, colori del sito) | da fare dopo `inspect` |
 | Musica del brano in riproduzione automatica | da fare, serve una fonte audio legittima |
 
@@ -40,6 +40,9 @@ python3 scripts/mbr.py hide --apply      # sposta gli altri giochi in ROMS_HIDDE
 python3 scripts/mbr.py covers --only-kept          # scarica le miniature, crea i PNG in build/covers
 python3 scripts/mbr.py install-covers              # simulazione
 python3 scripts/mbr.py install-covers --apply      # copia i PNG nel catalogo di muOS
+
+python3 scripts/mbr.py theme-dump                  # elenca i temi installati
+python3 scripts/mbr.py theme-dump --name "GB Dark" # descrive un tema da usare come modello (build/theme-dump.txt)
 
 python3 scripts/mbr.py restore --apply   # rimette tutto com'era
 ```
