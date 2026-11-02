@@ -1,0 +1,15 @@
+{
+  "source": "colori letti dal CSS di https://mbrserver.com/",
+  "background": "#0c1d12",
+  "text": "#00ff00",
+  "secondary": "#00b600",
+  "selected_background": "#00b600",
+  "selected_text": "#000000",
+  "font": {
+    "name": "Topaz",
+    "file": "topaz.ttf",
+    "source": "https://mbrserver.com/topaz.ttf",
+    "note": "non incluso nel repository, uso personale; maiuscolo, 8x8 pixel (2x = 32px come sul sito)"
+  },
+  "screen": {"width": 640, "height": 480}
+}

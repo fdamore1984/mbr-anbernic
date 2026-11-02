@@ -1,0 +1,14 @@
+{
+  "_verified": false,
+  "_note": "Nomi delle cartelle di muOS NON ancora verificati sulla versione 2606: esegui 'python3 scripts/mbr.py inspect' sulla scheda e correggi questo file in base al risultato.",
+  "catalogue_root": "MUOS/info/catalogue",
+  "box_dir": "box",
+  "systems": {
+    "FC": "Nintendo NES - Famicom",
+    "SFC": "Nintendo SNES - SFC",
+    "MD": "Sega Mega Drive - Genesis",
+    "SMS": "Sega Master System",
+    "PCE": "NEC PC Engine",
+    "GBC": "Nintendo Game Boy Color"
+  }
+}

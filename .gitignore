@@ -1,0 +1,8 @@
+build/
+__pycache__/
+*.pyc
+*.ttf
+*.png
+*.jpg
+ROMS/
+ROMS_HIDDEN/
