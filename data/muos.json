@@ -1,6 +1,6 @@
 {
-  "_verified": false,
-  "_note": "Nomi delle cartelle di muOS NON ancora verificati sulla versione 2606: esegui 'python3 scripts/mbr.py inspect' sulla scheda e correggi questo file in base al risultato.",
+  "_verified": true,
+  "_note": "Verificato su muOS 2606 (RG35XX Plus): catalogo, cartella box e nomi dei 6 sistemi coincidono con la scheda. Su altre versioni di muOS rilancia 'python3 scripts/mbr.py inspect' e controlla.",
   "catalogue_root": "MUOS/info/catalogue",
   "box_dir": "box",
   "systems": {
