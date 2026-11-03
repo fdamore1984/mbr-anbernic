@@ -6,3 +6,6 @@ __pycache__/
 *.jpg
 ROMS/
 ROMS_HIDDEN/
+
+# asset creati dal progetto (tema senza loghi, suoni e font dell artista)
+!assets/**

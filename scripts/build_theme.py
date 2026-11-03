@@ -211,7 +211,7 @@ def build(ttf, out, name, base_theme=None, logo=None, outro=None):
     (theme / "name.txt").write_text(name + "\n", encoding="utf-8")
     (theme / "version.txt").write_text("2606.0\n", encoding="utf-8")
     (theme / "credits.txt").write_text(
-        "tema fan-made; font Topaz (Amiga), colori dal sito di MBR\n", encoding="utf-8")
+        "tema fan-made per Master Boot Record; font Topaz (Amiga), bianco su nero\n", encoding="utf-8")
     (theme / "scheme" / "global.ini").write_text(ini(global_scheme(c)), encoding="utf-8")
     (res / "scheme" / "default.ini").write_text(ini(default_scheme(c)), encoding="utf-8")
     narrow = ini({"misc": {"CONTENT_WIDTH": LIST_WIDTH}})
