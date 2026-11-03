@@ -20,7 +20,7 @@ Pensato per RG35XX Plus con muOS 2606, preparato da una Steam Deck in modalità 
 
 - Python 3.8 o superiore (c'è già su SteamOS)
 - Pillow, per `covers` e `install-theme`: `pip install --user pillow`
-- Node.js (comando `npx`), solo per `install-theme`: converte il font nel formato di muOS
+- Node.js (comando `npx`), solo per `install-theme`: converte il font nel formato di muOS. SteamOS non ce l'ha: scarica il pacchetto `linux-x64` da nodejs.org, scompattalo in `~/.local/opt` e collega `node`, `npm` e `npx` in `~/.local/bin` (non serve sudo). Senza `npx` il tema non viene installato.
 - la scheda SD di muOS montata (default `/run/media/deck/MustardOS`, cambiabile con `--sd` o con la variabile `MBR_SD`)
 
 ## Uso
@@ -60,6 +60,18 @@ python3 scripts/mbr.py restore --apply   # rimette tutto com'era
 3. Lancia `inspect` e confronta con `data/muos.json`, poi procedi con `hide`, `covers` e `install-covers`.
 
 `covers` accetta `--size` (default `282x216`, la misura delle copertine che muOS 2606 ha già nel catalogo) e `--fit cover|contain`.
+
+## Se l'Anbernic resta ferma sul logo
+
+È già successo (3 novembre 2026). Le modifiche del progetto non c'entravano: era rovinata la partizione di sistema di muOS.
+
+- **Causa**: quando inserisci la scheda, SteamOS monta da solo anche `ROOTFS`, la partizione ext4 di sistema di muOS, in lettura e scrittura. Se togli la scheda dopo aver smontato solo `MustardOS`, `ROOTFS` resta sporca. Nel nostro caso la lista degli inode orfani era corrotta e muOS non arrivava al menu.
+- **Come evitarlo**: prima di togliere la scheda smonta entrambe le partizioni:
+  `udisksctl unmount -b /dev/mmcblk0p6; udisksctl unmount -b /dev/mmcblk0p5`
+- **Come accorgersene**: `sudo fsck.ext4 -n` dice "clean" anche quando ci sono errori, perché legge solo il flag. Serve il controllo forzato, in sola lettura: `sudo fsck.ext4 -fn /dev/mmcblk0p5`.
+- **Come ripararlo**: `sudo fsck.ext4 -fy /dev/mmcblk0p5`, a scheda smontata. La partizione dati è exFAT: `sudo fsck.exfat -n /dev/mmcblk0p6`.
+- Dopo tanti avvii bloccati la batteria si scarica del tutto, e la console resta nera anche col cavo collegato per un po'. Lasciala in carica 1-2 ore prima di pensare a un guasto.
+- È normale che il bootloader sulla scheda (settori 16 e 512) sia diverso dall'immagine: al primo avvio il chip Allwinner ci salva la calibrazione della RAM.
 
 ## Cosa non è nel repository
 
