@@ -23,7 +23,7 @@ HIDDEN_DIR = "ROMS_HIDDEN"
 MANIFEST = ".mbr-hidden.json"
 DEFAULT_SD = os.environ.get("MBR_SD", "/run/media/deck/MustardOS")
 UA = {"User-Agent": "mbr-anbernic/0.1"}
-BG = (12, 29, 18)  # #0c1d12, colore di sfondo del sito di MBR
+BG = (0, 0, 0)  # sfondo delle copertine, come il tema (bianco su nero)
 
 
 def load_json(path):
@@ -630,6 +630,20 @@ SOUNDS = [
 ]
 
 
+INIT_SCRIPT = r"""#!/bin/sh
+# mbr-anbernic: suono di avvio. muOS lancia gli script di MUOS/init se user_init = 1.
+WAV="$(dirname "$0")/mbr-startup.wav"
+[ -f "$WAV" ] || exit 0
+export XDG_RUNTIME_DIR=/run PIPEWIRE_RUNTIME_DIR=/run
+i=0
+while [ "$(cat /opt/muos/device/config/audio/ready 2>/dev/null)" != 1 ] && [ $i -lt 150 ]; do
+    sleep 0.2; i=$((i + 1))
+done
+sleep 0.5
+pw-play "$WAV" 2>/dev/null || aplay -q "$WAV"
+"""
+
+
 def cmd_install_sounds(a):
     """Pezzi brevi dei brani come suoni di avvio/spegnimento del tema (WAV 16 bit 44.1 kHz)."""
     import re
@@ -663,14 +677,26 @@ def cmd_install_sounds(a):
                 d.mkdir(exist_ok=True)
                 shutil.copyfile(wav, d / wav.name)
         print("ok  %s" % role)
+    # Il "chime" di muOS si perde quando si parte direttamente dalla collezione (kiosk): lo suona
+    # invece uno script utente in MUOS/init appena PipeWire e' pronto.
+    init = Path(a.sd) / "MUOS" / "init"
+    if init.is_dir() and (out / "startup.wav").is_file():
+        shutil.copyfile(out / "startup.wav", init / "mbr-startup.wav")
+        (init / "mbr-startup.sh").write_text(INIT_SCRIPT, encoding="utf-8")
+        print("ok  %s" % (init / "mbr-startup.sh"))
     script = BUILD / "sound-rootfs.sh"
-    script.write_text("\n".join([
-        "#!/bin/sh", "# Fa usare a muOS i suoni del tema (avvio/spegnimento MBR). Lancia con sudo.", "set -e",
-        'F="%s/opt/muos/config/settings/general/sound"' % a.rootfs,
-        '[ -f "$F" ] || { echo "ROOTFS non montata"; exit 1; }',
-        'U="%s"' % (BUILD / "sound-rootfs-undo.sh"),
-        '[ -e "$U" ] || printf \'#!/bin/sh\\nprintf %%s %s > "%s"\\n\' "$(cat "$F")" "$F" > "$U"',
-        'printf 2 > "$F"', "sync", 'echo "Suoni del tema attivi. Per annullare: sudo sh $U"']) + "\n", encoding="utf-8")
+    keys = [("general/sound", 2), ("advanced/user_init", 1), ("general/chime", 0)]
+    lines = ["#!/bin/sh", "# Suoni del tema, script utente all'avvio, chime di muOS spento. Lancia con sudo.", "set -e",
+             'C="%s/opt/muos/config/settings"' % a.rootfs,
+             '[ -d "$C/general" ] || { echo "ROOTFS non montata"; exit 1; }',
+             'U="%s"' % (BUILD / "sound-rootfs-undo.sh"),
+             '[ -e "$U" ] || echo "#!/bin/sh" > "$U"']
+    for k, v in keys:
+        lines += ['F="$C/%s"' % k,
+                  'grep -qF "$F" "$U" || printf \'printf %%s %s > "%s"\\n\' "$(cat "$F")" "$F" >> "$U"',
+                  'printf %d > "$F"' % v]
+    lines += ["sync", 'echo "Fatto. Per annullare: sudo sh $U"']
+    script.write_text("\n".join(lines) + "\n", encoding="utf-8")
     os.sync()
     print("\nOra lancia: sudo sh %s" % script)
     return 0

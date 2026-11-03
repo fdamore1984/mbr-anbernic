@@ -1,9 +1,9 @@
 {
-  "source": "colori letti dal CSS di https://mbrserver.com/",
-  "background": "#0c1d12",
-  "text": "#00ff00",
-  "secondary": "#00b600",
-  "selected_background": "#00b600",
+  "source": "bianco su nero (prima: colori del sito di MBR, verdi)",
+  "background": "#000000",
+  "text": "#ffffff",
+  "secondary": "#a0a0a0",
+  "selected_background": "#ffffff",
   "selected_text": "#000000",
   "font": {
     "name": "Topaz",
@@ -11,5 +11,8 @@
     "source": "https://mbrserver.com/topaz.ttf",
     "note": "non incluso nel repository, uso personale; maiuscolo, 8x8 pixel (2x = 32px come sul sito)"
   },
-  "screen": {"width": 640, "height": 480}
+  "screen": {
+    "width": 640,
+    "height": 480
+  }
 }

@@ -39,8 +39,8 @@ def default_scheme(c):
         "background", "text", "secondary", "selected_background", "selected_text"))
     glyph = {}
     for key in ("A", "B", "C", "X", "Y", "Z", "MENU"):
-        glyph.update({"NAV_%s_GLYPH" % key: bg, "NAV_%s_GLYPH_ALPHA" % key: 255,
-                      "NAV_%s_TEXT" % key: "000000", "NAV_%s_TEXT_ALPHA" % key: 255})
+        glyph.update({"NAV_%s_GLYPH" % key: fg, "NAV_%s_GLYPH_ALPHA" % key: 255,
+                      "NAV_%s_TEXT" % key: fg, "NAV_%s_TEXT_ALPHA" % key: 255})
     return {
         "background": {"BACKGROUND": bg, "BACKGROUND_ALPHA": 255},
         "font": {"FONT_HEADER_PAD_TOP": 0, "FONT_HEADER_PAD_BOTTOM": 0, "FONT_HEADER_ICON_PAD_TOP": 0,
@@ -50,14 +50,14 @@ def default_scheme(c):
                  "FONT_LIST_PAD_TOP": 1, "FONT_LIST_PAD_BOTTOM": 0, "FONT_LIST_ICON_PAD_TOP": 0,
                  "FONT_LIST_ICON_PAD_BOTTOM": 0},
         "status": {"PADDING_RIGHT": 10},
-        "battery": {"BATTERY_NORMAL": fg, "BATTERY_ACTIVE": dim, "BATTERY_LOW": "ffb000",
+        "battery": {"BATTERY_NORMAL": fg, "BATTERY_ACTIVE": dim, "BATTERY_LOW": dim,
                     "BATTERY_NORMAL_ALPHA": 255, "BATTERY_ACTIVE_ALPHA": 255, "BATTERY_LOW_ALPHA": 255},
         "network": {"NETWORK_NORMAL": fg, "NETWORK_ACTIVE": dim, "NETWORK_NORMAL_ALPHA": 255,
                     "NETWORK_ACTIVE_ALPHA": 255},
         "bluetooth": {"BLUETOOTH_NORMAL": fg, "BLUETOOTH_ACTIVE": dim, "BLUETOOTH_NORMAL_ALPHA": 255,
                       "BLUETOOTH_ACTIVE_ALPHA": 255},
         "date": {"DATETIME_TEXT": fg, "DATETIME_ALPHA": 255, "PADDING_LEFT": 10},
-        "footer": {"FOOTER_BACKGROUND": dim, "FOOTER_BACKGROUND_ALPHA": 255, "FOOTER_TEXT": "000000",
+        "footer": {"FOOTER_BACKGROUND": bg, "FOOTER_BACKGROUND_ALPHA": 255, "FOOTER_TEXT": fg,
                    "FOOTER_TEXT_ALPHA": 255},
         "header": {"HEADER_BACKGROUND": bg, "HEADER_BACKGROUND_ALPHA": 255, "HEADER_TEXT": fg,
                    "HEADER_TEXT_ALPHA": 255},
@@ -98,7 +98,7 @@ def default_scheme(c):
                  "ROLL_BORDER_COLOUR": fg, "ROLL_BORDER_ALPHA": 255, "ROLL_BORDER_RADIUS": 0},
         "meta": {"META_CUT": 40},
         "bar": {"BAR_BACKGROUND": bg, "BAR_BACKGROUND_ALPHA": 255, "BAR_BORDER": fg, "BAR_BORDER_ALPHA": 255,
-                "BAR_RADIUS": 0, "BAR_PROGRESS_BACKGROUND": "17452a", "BAR_PROGRESS_BACKGROUND_ALPHA": 255,
+                "BAR_RADIUS": 0, "BAR_PROGRESS_BACKGROUND": "333333", "BAR_PROGRESS_BACKGROUND_ALPHA": 255,
                 "BAR_PROGRESS_ACTIVE_BACKGROUND": fg, "BAR_PROGRESS_ACTIVE_BACKGROUND_ALPHA": 255,
                 "BAR_PROGRESS_RADIUS": 0, "BAR_ICON": fg, "BAR_ICON_ALPHA": 255},
         "misc": {"STATIC_ALIGNMENT": 0, "ANIMATED_BACKGROUND": 0, "NAVIGATION_TYPE": 0,
@@ -183,8 +183,8 @@ def preview(ttf, c):
             d.text((10, y + 2), name, font=f, fill=fg)
         y += 36
     d.rectangle([LIST_WIDTH + 18, 70, LIST_WIDTH + 18 + 241, 70 + 216], outline=fg, width=2)
-    d.rectangle([0, H - 40, W, H], fill=dim)
-    d.text((10, H - 38), "A:OPEN  B:BACK", font=f, fill="#000000")
+    d.line([0, H - 41, W, H - 41], fill=dim, width=1)
+    d.text((10, H - 38), "A:OPEN  B:BACK", font=f, fill=fg)
     return img
 
 
