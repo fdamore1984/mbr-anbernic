@@ -433,7 +433,8 @@ def cmd_install_names(a):
         print("Simulazione: aggiungi --apply.")
         return 0
     if path.is_file():
-        shutil.copy2(path, str(path) + ".bak")
+        if not Path(str(path) + ".bak").exists():  # tiene la copia dell'originale, non delle versioni successive
+            shutil.copy2(path, str(path) + ".bak")
     path.parent.mkdir(parents=True, exist_ok=True)
     data.update(names)
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")

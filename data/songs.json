@@ -33,17 +33,17 @@
     {"n": 28, "title": "Altered Beast", "video_id": "lEuGBcolnDc", "rom": {"system": "MD", "file": "Altered Beast (USA, Europe).md"}},
     {"n": 29, "title": "Street Fighter II", "video_id": "2gytUQWAfJ8", "rom": {"system": "SFC", "file": "Street Fighter II (USA).smc"}},
     {"n": 30, "title": "Super Metroid", "video_id": "GYoRksTOfeI", "rom": null},
-    {"n": 31, "title": "System Shock", "video_id": "rjh0r_odX3k", "rom": null},
+    {"n": 31, "title": "System Shock", "video_id": "rjh0r_odX3k", "rom": {"system": "DOS", "file": "System Shock (1994).zip"}},
     {"n": 32, "title": "Flashback", "video_id": "kkA-VyqKjrU", "rom": {"system": "SFC", "file": "Flashback - The Quest for Identity (USA).smc"}},
-    {"n": 33, "title": "Syndicate", "video_id": "Gj_bLLQwO_Q", "rom": null},
+    {"n": 33, "title": "Syndicate", "video_id": "Gj_bLLQwO_Q", "rom": {"system": "MD", "file": "Syndicate (USA, Europe).md"}},
     {"n": 34, "title": "Dune II: The Building Of A Dynasty", "video_id": "MUJaa4BhPiA", "rom": {"system": "MD", "file": "Dune - The Battle for Arrakis (USA).md"}},
     {"n": 35, "title": "TURRICAN", "video_id": "ICMJRfoDCjY", "rom": {"system": "PCE", "file": "Turrican (USA).pce"}, "match": "loose"},
     {"n": 36, "title": "Ultima", "video_id": "TEcWETdiMxI", "rom": {"system": "SMS", "file": "Ultima IV - Quest of the Avatar (Europe).sms"}, "match": "loose"},
-    {"n": 37, "title": "XCOM: Ufo Defense / UFO: Enemy Unknown", "video_id": "Lv3Yv_QD7Zc", "rom": null},
+    {"n": 37, "title": "XCOM: Ufo Defense / UFO: Enemy Unknown", "video_id": "Lv3Yv_QD7Zc", "rom": {"system": "PS", "file": "X-COM - Enemy Unknown (Europe) (En,Fr,De,Es,It).cue"}},
     {"n": 38, "title": "Shadow Of The Beast", "video_id": "vl8kgj1DEm0", "rom": {"system": "MD", "file": "Shadow of the Beast (USA, Europe).md"}},
     {"n": 39, "title": "Alone In The Dark", "video_id": "atGpXBRboXs", "rom": {"system": "GBC", "file": "Alone in the Dark - The New Nightmare (USA).gbc"}, "match": "loose"},
-    {"n": 40, "title": "HeroQuest", "video_id": "Dzga-DsWL1A", "rom": null},
-    {"n": 41, "title": "Zak McKracken And The Alien Mindbenders", "video_id": "hbOFbDRkDGY", "rom": null},
-    {"n": 42, "title": "Loom", "video_id": "X8bf4E0mYuo", "rom": null}
+    {"n": 40, "title": "HeroQuest", "video_id": "Dzga-DsWL1A", "rom": {"system": "DOS", "file": "HeroQuest (1991).zip"}},
+    {"n": 41, "title": "Zak McKracken And The Alien Mindbenders", "video_id": "hbOFbDRkDGY", "rom": {"system": "SCUMMVM", "file": "Zak McKracken.scummvm"}},
+    {"n": 42, "title": "Loom", "video_id": "X8bf4E0mYuo", "rom": {"system": "SCUMMVM", "file": "Loom.scummvm"}}
   ]
 }

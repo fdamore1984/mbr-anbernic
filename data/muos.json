@@ -9,6 +9,9 @@
     "MD": "Sega Mega Drive - Genesis",
     "SMS": "Sega Master System",
     "PCE": "NEC PC Engine",
-    "GBC": "Nintendo Game Boy Color"
+    "GBC": "Nintendo Game Boy Color",
+    "PS": "Sony PlayStation",
+    "DOS": "PC DOS",
+    "SCUMMVM": "ScummVM"
   }
 }
