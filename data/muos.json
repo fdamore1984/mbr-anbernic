@@ -12,6 +12,7 @@
     "GBC": "Nintendo Game Boy Color",
     "PS": "Sony PlayStation",
     "DOS": "PC DOS",
-    "SCUMMVM": "ScummVM"
+    "SCUMMVM": "ScummVM",
+    "AMIGA": "Commodore Amiga"
   }
 }

@@ -526,11 +526,13 @@ def cmd_install_logo(a):
 
 ROM_MOUNT = "/mnt/mmc"   # dove muOS monta la scheda (device/config/storage/rom/mount)
 
-# 1 = bloccato in modalita' kiosk. Tutto bloccato tranne le collezioni.
+# 1 = bloccato in modalita' kiosk: si parte dalla collezione, che non si puo' modificare.
 KIOSK = {
     "enable": 1, "message": 1,
     "collect/access": 1, "collect/add_con": 1, "collect/new_dir": 1, "collect/remove": 1,
-    "launch/apps": 1, "launch/config": 1, "launch/explore": 1, "launch/history": 1, "launch/info": 1,
+    # menu principale sbloccato: le voci bloccate restano visibili (muOS non le nasconde) e da
+    # Esplora si raggiungono gli altri giochi
+    "launch/apps": 0, "launch/config": 0, "launch/explore": 0, "launch/history": 0, "launch/info": 0,
     "launch/collection": 0,
 }
 
@@ -582,7 +584,7 @@ def cmd_install_kiosk(a):
     BUILD.mkdir(exist_ok=True)
     script.write_text("\n".join(lines) + "\n", encoding="utf-8")
     os.sync()
-    print("Scritte %d voci. Ora lancia: sudo sh %s" % (len(entries), script))
+    print("Scritte %d voci. Solo se il kiosk non e' ancora attivo: sudo sh %s" % (len(entries), script))
     return 0
 
 

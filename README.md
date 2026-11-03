@@ -10,15 +10,15 @@ Provato su una RG35XX Plus con muOS 2606 (novembre 2026): funziona.
 
 | Parte | Stato |
 |---|---|
-| 42 brani della playlist, 36 con un gioco (`data/songs.json`) | fatto; mancano Red Alert, DOOM II, Dune: Spice Opera, Ocean Loaders, Monkey Island, Super Metroid |
+| 42 brani della playlist, 41 con un gioco (`data/songs.json`) | fatto; Ocean Loaders non e' un gioco (e' il suono di avvio) |
 | Solo i giochi scelti visibili (`hide`), gli altri in `ROMS_HIDDEN` | provato sulla console |
 | Copertine 272x204 dalle miniature dei video | provato |
 | Anteprima con il brano: fermandosi su un gioco parte la sua musica | provato |
 | Tema "MBR Terminal": Topaz, bianco su nero | provato |
 | Logo di avvio, logo di spegnimento/riavvio, salvaschermo | provato |
 | Suoni di avvio e spegnimento (pezzi dei brani) | provato |
-| Modalità kiosk: all'accensione solo la collezione dei giochi | provato |
-| Giochi DOS (DOSBox Pure) e ScummVM | installati, **da provare** |
+| Modalità kiosk: all'accensione la collezione MBR; dal menu principale (B) Esplora porta a tutti gli altri giochi | provato |
+| Giochi DOS (DOSBox Pure), ScummVM, Amiga (PUAE 2021), PlayStation multi-disco (.m3u) | installati, **da provare** |
 
 ## Cosa serve
 
@@ -71,6 +71,7 @@ I file dei brani in `cartella_brani` vengono riconosciuti se il nome contiene il
 - Spegnimento e riavvio mostrano `shutdown.png` e `reboot.png` del tema. Il salvaschermo "DVD" fa rimbalzare `screensaver.png`.
 - Il suono di avvio di muOS (*chime*) si perde se si parte direttamente da una collezione. Lo suona invece uno script utente, `MUOS/init/mbr-startup.sh` (`settings/advanced/user_init = 1`).
 - Le voci di una collezione sono file `.cfg` di tre righe (percorso, sistema, nome). Il nome del file è `<nome>-<FNV-1a del percorso>.cfg`. La collezione kiosk è `MUOS/info/collection/kiosk/`.
+- Il menu principale ha 8 voci fisse: il kiosk le blocca ma non le nasconde, e B dalla collezione torna sempre li'.
 - L'emulatore di una cartella viene assegnato da solo solo aprendola nell'esploratore. Per le cartelle nuove usate dal kiosk va scritto a mano `share/info/content/<CARTELLA>/core.cfg`.
 
 ## Su un'altra Anbernic
