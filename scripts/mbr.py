@@ -441,10 +441,32 @@ def cmd_install_names(a):
     return 0
 
 
+# ------------------------------------------------------------------ file dei brani
+
+def media_files(folder):
+    """{video_id: file}. Riconosce "... [video_id].ext" (download da YouTube) e "NN - Titolo.ext"
+    (numero del brano nella playlist). Se ci sono tutti e due, vince il primo."""
+    import re
+    by_n = {s["n"]: s["video_id"] for s in songs()}
+    found = {}
+    for f in sorted(Path(folder).expanduser().iterdir()):
+        if not f.is_file():
+            continue
+        m = re.search(r"\[([A-Za-z0-9_-]{11})\]\.[^.]+$", f.name)
+        if m:
+            found.setdefault(m.group(1), f)
+            continue
+        m = re.match(r"(\d{1,2})\s*-\s", f.name)
+        if m and int(m.group(1)) in by_n:
+            found.setdefault(by_n[int(m.group(1))], f)
+    return found
+
+
 # ------------------------------------------------------------------ install-logo
 
 LOGO_FILE = BUILD / "logo.png"          # copia del logo scelto, riusata da install-theme
 OUTRO_FILE = BUILD / "logo_outro.png"   # logo di spegnimento/riavvio
+SAVER_FILE = BUILD / "screensaver.png"  # logo che rimbalza nel salvaschermo DVD
 DEFAULT_BOOT = os.environ.get("MBR_BOOT", "/run/media/deck/BOOT")
 
 
@@ -477,6 +499,12 @@ def cmd_install_logo(a):
         return 0
     logo.save(LOGO_FILE)
     outro.save(OUTRO_FILE)
+    saver = build_theme.saver_image(src)
+    saver.save(SAVER_FILE)
+    for base in (BUILD / "theme" / a.theme, sd / "MUOS" / "theme" / a.theme):
+        if base.is_dir():
+            saver.save(base / res / "image" / "screensaver.png")
+            print("salvaschermo -> %s" % (base / res / "image" / "screensaver.png"))
     backup = BUILD / "boot-backup"
     for t in targets:
         if t.parent.parent.parent.is_dir() or t.is_relative_to(boot):
@@ -568,11 +596,7 @@ def cmd_install_previews(a):
     if not shutil.which("ffmpeg"):
         sys.exit("Serve ffmpeg.")
     media = Path(a.media).expanduser()
-    by_id = {}
-    for f in media.iterdir():
-        m = re.search(r"\[([A-Za-z0-9_-]{11})\]\.[^.]+$", f.name)
-        if m:
-            by_id[m.group(1)] = f
+    by_id = media_files(media)
     sd = Path(a.sd)
     muos = load_json(MUOS_FILE)
     cat = sd / muos["catalogue_root"]
@@ -605,7 +629,7 @@ def cmd_install_previews(a):
                                      "stream=codec_name", "-of", "default=nw=1:nk=1", str(src)],
                                     check=True, capture_output=True, text=True).stdout.strip()
             # il lettore di muOS 2606 decodifica solo AAC, MP3 e PCM (niente Opus/Vorbis)
-            audio = ["-c:a", "copy"] if acodec in ("aac", "mp3") else ["-c:a", "aac", "-b:a", a.bitrate]
+            audio = ["-c:a", "copy"] if acodec == "aac" else ["-c:a", "aac", "-b:a", a.bitrate]  # AAC provato sulla console
             cmd = ["ffmpeg", "-v", "error", "-y", "-loop", "1", "-framerate", "2", "-i", str(cover), "-i", str(src),
                    "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-profile:v", "baseline", "-tune", "stillimage",
                    "-vf", "scale=%s:flags=lanczos" % a.size.replace("x", ":"),
@@ -649,11 +673,7 @@ def cmd_install_sounds(a):
     import re
     import subprocess
     media = Path(a.media).expanduser()
-    by_id = {}
-    for f in media.iterdir():
-        m = re.search(r"\[([A-Za-z0-9_-]{11})\]\.[^.]+$", f.name)
-        if m:
-            by_id[m.group(1)] = f
+    by_id = media_files(media)
     jobs = []
     for role, vid, start, dur, fade in SOUNDS:
         if vid not in by_id:

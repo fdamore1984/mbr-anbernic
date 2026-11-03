@@ -165,6 +165,16 @@ def logo_screen(src, background="000000"):
     return out
 
 
+def saver_image(src, width=220):
+    """Logo per il salvaschermo DVD di muOS: piccolo, il nero diventa trasparente."""
+    Image = pil()[0]
+    img = Image.open(src).convert("RGB")
+    img.thumbnail((width, width), Image.LANCZOS)
+    out = Image.new("RGBA", img.size, (255, 255, 255, 0))
+    out.putalpha(img.convert("L"))  # luminosita' = opacita': bianco pieno, nero invisibile
+    return out
+
+
 def preview(ttf, c):
     Image, ImageDraw, ImageFont = pil()
     img = Image.new("RGB", (W, H), "#" + c["background"])
@@ -232,6 +242,9 @@ def build(ttf, out, name, base_theme=None, logo=None, outro=None):
 
     if base_theme and (Path(base_theme) / "sound").is_dir():
         shutil.copytree(Path(base_theme) / "sound", theme / "sound")
+    saver = ROOT / "build" / "screensaver.png"  # da install-logo
+    if saver.is_file():
+        shutil.copyfile(saver, res / "image" / "screensaver.png")
     custom = ROOT / "build" / "sounds"  # avvio/spegnimento da install-sounds
     if custom.is_dir():
         (theme / "sound").mkdir(exist_ok=True)
