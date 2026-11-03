@@ -155,6 +155,16 @@ def text_screen(ttf, c, lines, center=False):
     return img
 
 
+def logo_screen(src, background="000000"):
+    """Logo dell'utente adattato a 640x480: intero, centrato, su sfondo pieno."""
+    Image = pil()[0]
+    img = Image.open(src).convert("RGB")
+    img.thumbnail((W, H), Image.LANCZOS)
+    out = Image.new("RGB", (W, H), "#" + background)
+    out.paste(img, ((W - img.width) // 2, (H - img.height) // 2))
+    return out
+
+
 def preview(ttf, c):
     Image, ImageDraw, ImageFont = pil()
     img = Image.new("RGB", (W, H), "#" + c["background"])
@@ -178,7 +188,7 @@ def preview(ttf, c):
     return img
 
 
-def build(ttf, out, name, base_theme=None):
+def build(ttf, out, name, base_theme=None, logo=None):
     """Crea out/<name>/ con il tema completo. Ritorna il percorso."""
     c = colors()
     theme = Path(out) / name
@@ -205,7 +215,10 @@ def build(ttf, out, name, base_theme=None):
     Image.new("RGBA", (1, 1), (0, 0, 0, 0)).save(theme / "image" / "none_preview.png")
     fg, dim = c["text"], c["secondary"]
     Image.new("RGB", (W, H), "#" + c["background"]).save(res / "image" / "wall" / "default.png")
-    text_screen(ttf, c, [("C:\\>BOOT MUOS", fg), ("LOADING...", dim), ("_", fg)]).save(res / "image" / "bootlogo.bmp")
+    if logo and Path(logo).is_file():
+        logo_screen(logo).save(res / "image" / "bootlogo.bmp")
+    else:
+        text_screen(ttf, c, [("C:\\>BOOT MUOS", fg), ("LOADING...", dim), ("_", fg)]).save(res / "image" / "bootlogo.bmp")
     text_screen(ttf, c, [("STARTING...", fg)], center=True).save(res / "image" / "wall" / "muxstart.png")
     text_screen(ttf, c, [("CHARGING...", fg)], center=True).save(res / "image" / "wall" / "muxcharge.png")
     prev = preview(ttf, c)

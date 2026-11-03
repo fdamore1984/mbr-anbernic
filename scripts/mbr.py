@@ -405,7 +405,7 @@ def cmd_install_theme(a):
     sd = Path(a.sd)
     base = sd / "MUOS" / "theme" / a.base if a.base else None
     out = BUILD / "theme"
-    theme = build_theme.build(font, out, a.name, base_theme=base)
+    theme = build_theme.build(font, out, a.name, base_theme=base, logo=a.logo)
     print("Tema generato in %s" % theme)
     dest = sd / "MUOS" / "theme" / a.name
     if not a.apply:
@@ -438,6 +438,166 @@ def cmd_install_names(a):
     data.update(names)
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     print("Fatto (copia di sicurezza: global.json.bak)")
+    return 0
+
+
+# ------------------------------------------------------------------ install-logo
+
+LOGO_FILE = BUILD / "logo.png"          # copia del logo scelto, riusata da install-theme
+DEFAULT_BOOT = os.environ.get("MBR_BOOT", "/run/media/deck/BOOT")
+
+
+def cmd_install_logo(a):
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import build_theme
+    src = Path(a.image).expanduser()
+    if not src.is_file():
+        sys.exit("Immagine non trovata: %s" % src)
+    sd, boot = Path(a.sd), Path(a.boot)
+    res = "%dx%d" % (build_theme.W, build_theme.H)
+    logo = build_theme.logo_screen(src)
+    targets = [BUILD / "theme" / a.theme / res / "image" / "bootlogo.bmp",
+               sd / "MUOS" / "theme" / a.theme / res / "image" / "bootlogo.bmp"]
+    if boot.is_dir():
+        targets += [boot / "bootlogo.bmp", boot / "bat" / "battery_charge.bmp"]
+    else:
+        print("Partizione di avvio non montata (%s): aggiorno solo il tema." % boot)
+        print("muOS la aggiorna da solo quando riattivi il tema.")
+    for t in targets:
+        print("logo -> %s" % t)
+    if not a.apply:
+        print("\nSimulazione: aggiungi --apply.")
+        return 0
+    logo.save(LOGO_FILE)
+    backup = BUILD / "boot-backup"
+    for t in targets:
+        if t.parent.parent.parent.is_dir() or t.is_relative_to(boot):
+            t.parent.mkdir(parents=True, exist_ok=True)
+            if t.is_relative_to(boot) and t.is_file():
+                b = backup / t.relative_to(boot)
+                if not b.exists():  # salva solo l'originale, non le versioni successive
+                    b.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(t, b)
+            logo.save(t, format="BMP")
+    os.sync()
+    print("\nFatto. Originali della partizione di avvio in %s" % backup)
+    return 0
+
+
+# ----------------------------------------------------------------- install-kiosk
+
+ROM_MOUNT = "/mnt/mmc"   # dove muOS monta la scheda (device/config/storage/rom/mount)
+
+# 1 = bloccato in modalita' kiosk. Tutto bloccato tranne le collezioni.
+KIOSK = {
+    "enable": 1, "message": 1,
+    "collect/access": 1, "collect/add_con": 1, "collect/new_dir": 1, "collect/remove": 1,
+    "launch/apps": 1, "launch/config": 1, "launch/explore": 1, "launch/history": 1, "launch/info": 1,
+    "launch/collection": 0,
+}
+
+
+def fnv1a(text):
+    h = 0x811C9DC5
+    for c in text.encode("utf-8"):
+        h = ((h ^ c) * 0x01000193) & 0xFFFFFFFF
+    return h
+
+
+def cmd_install_kiosk(a):
+    sd = Path(a.sd)
+    roms = rom_root(sd)
+    dest = sd / "MUOS" / "info" / "collection" / "kiosk"
+    entries = []
+    for s in kept():
+        r = s["rom"]
+        if not (roms / r["system"] / r["file"]).is_file():
+            print("Manca sulla scheda, salto: %s" % rel_of(s))
+            continue
+        full = "%s/ROMS/%s/%s" % (ROM_MOUNT, r["system"], r["file"])
+        stem = Path(r["file"]).stem
+        entries.append(("%s-%08X.cfg" % (stem, fnv1a(full)), "%s\n%s\n%s" % (full, r["system"], stem)))
+    for name, _ in entries:
+        print("%s/%s" % (dest, name))
+    script = BUILD / "kiosk-rootfs.sh"
+    rootfs = Path(a.rootfs) / "opt" / "muos"
+    lines = ["#!/bin/sh", "# Attiva la modalita' kiosk e l'avvio sulla collezione. Lancia con sudo.",
+             "# Salva i valori attuali in kiosk-rootfs-undo.sh (stessa cartella).", "set -e",
+             'R="%s"' % rootfs, 'U="%s"' % (BUILD / "kiosk-rootfs-undo.sh"),
+             '[ -d "$R/kiosk" ] || { echo "ROOTFS non montata: $R"; exit 1; }',
+             '[ -e "$U" ] || { echo "#!/bin/sh"; for f in $(cd "$R/kiosk" && find . -type f); do '
+             'echo "printf %s $(cat "$R/kiosk/$f") > \\"$R/kiosk/$f\\""; done; '
+             'echo "printf %s $(cat "$R/config/settings/general/startup") > \\"$R/config/settings/general/startup\\""; } > "$U"']
+    for k, v in KIOSK.items():
+        lines.append('printf %d > "$R/kiosk/%s"' % (v, k))
+    lines += ['printf collection > "$R/config/settings/general/startup"', "sync",
+              'echo "Kiosk attivo. Per annullare: sudo sh $U"']
+    print("\nScript per la partizione di sistema: %s" % script)
+    if not a.apply:
+        print("Simulazione: aggiungi --apply.")
+        return 0
+    dest.mkdir(parents=True, exist_ok=True)
+    for name, body in entries:
+        (dest / name).write_text(body, encoding="utf-8")
+    BUILD.mkdir(exist_ok=True)
+    script.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    os.sync()
+    print("Scritte %d voci. Ora lancia: sudo sh %s" % (len(entries), script))
+    return 0
+
+
+# -------------------------------------------------------------- install-previews
+
+def cmd_install_previews(a):
+    """Copertina ferma + brano in un MP4: muOS lo riproduce (con l'audio) al posto della PNG."""
+    import re
+    import subprocess
+    if not shutil.which("ffmpeg"):
+        sys.exit("Serve ffmpeg.")
+    media = Path(a.media).expanduser()
+    by_id = {}
+    for f in media.iterdir():
+        m = re.search(r"\[([A-Za-z0-9_-]{11})\]\.[^.]+$", f.name)
+        if m:
+            by_id[m.group(1)] = f
+    sd = Path(a.sd)
+    muos = load_json(MUOS_FILE)
+    cat = sd / muos["catalogue_root"]
+    out_root = BUILD / "previews"
+    todo, missing = [], []
+    for s in kept():
+        r = s["rom"]
+        stem = Path(r["file"]).stem
+        cover = Path(a.covers) / r["system"] / (stem + ".png")
+        src = by_id.get(s["video_id"])
+        if not src or not cover.is_file():
+            missing.append("%s (%s)" % (s["title"], "brano" if not src else "copertina"))
+            continue
+        todo.append((s, cover, src, out_root / r["system"] / (stem + ".mp4"),
+                     cat / muos["systems"][r["system"]] / muos["box_dir"] / (stem + ".mp4")))
+    for s, cover, src, out, dest in todo:
+        print("%-40s <- %s" % (s["title"], src.name))
+    if missing:
+        print("\nSenza anteprima: %s" % ", ".join(missing))
+    if not a.apply:
+        print("\nSimulazione: %d anteprime. Aggiungi --apply." % len(todo))
+        return 0
+    for s, cover, src, out, dest in todo:
+        if not out.is_file() or a.force:
+            out.parent.mkdir(parents=True, exist_ok=True)
+            dur = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries",
+                                  "format=duration", "-of", "default=nw=1:nk=1", str(src)],
+                                 check=True, capture_output=True, text=True).stdout.strip()
+            cmd = ["ffmpeg", "-v", "error", "-y", "-loop", "1", "-framerate", "2", "-i", str(cover), "-i", str(src),
+                   "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-profile:v", "baseline", "-tune", "stillimage",
+                   "-pix_fmt", "yuv420p", "-r", "2", "-c:a", "libopus", "-b:a", a.bitrate, "-ac", "2", "-ar", "48000",
+                   "-t", dur, "-movflags", "+faststart", str(out)]
+            subprocess.run(cmd, check=True)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(out, dest)
+        print("ok  %s" % dest)
+    os.sync()
+    print("\nFatto: %d anteprime. Le PNG restano accanto come riserva." % len(todo))
     return 0
 
 
@@ -474,6 +634,18 @@ def main():
     p.add_argument("--font", default="topaz.ttf", help="percorso di topaz.ttf (default: %(default)s)")
     p.add_argument("--name", default="MBR Terminal")
     p.add_argument("--base", default="GB Dark", help="tema da cui copiare i suoni ('' per nessuno)")
+    p.add_argument("--logo", default=str(LOGO_FILE), help="logo di avvio (default: quello salvato da install-logo)")
+    p = add("install-logo", cmd_install_logo, "mette un'immagine come logo di avvio", apply=True)
+    p.add_argument("image", help="immagine del logo (jpg/png)")
+    p.add_argument("--boot", default=DEFAULT_BOOT, help="partizione di avvio montata (default: %(default)s)")
+    p.add_argument("--theme", default="MBR Terminal")
+    p = add("install-kiosk", cmd_install_kiosk, "collezione kiosk con i giochi scelti + script di attivazione", apply=True)
+    p.add_argument("--rootfs", default="/run/media/deck/ROOTFS", help="partizione di sistema di muOS montata")
+    p = add("install-previews", cmd_install_previews, "anteprime MP4: copertina + brano, suonano mentre scorri", apply=True)
+    p.add_argument("--media", required=True, help="cartella con i file audio/video dei brani (nome con [video_id])")
+    p.add_argument("--covers", default=str(BUILD / "covers"))
+    p.add_argument("--bitrate", default="96k", help="audio Opus (default: %(default)s)")
+    p.add_argument("--force", action="store_true", help="rigenera anche gli MP4 gia' pronti")
     add("install-names", cmd_install_names, "scrive i titoli dei brani come nomi dei giochi", apply=True)
     p = add("theme-dump", cmd_theme_dump, "descrive un tema muOS esistente da usare come modello")
     p.add_argument("--name", help="nome del tema (senza: elenca i temi installati)")
