@@ -405,7 +405,7 @@ def cmd_install_theme(a):
     sd = Path(a.sd)
     base = sd / "MUOS" / "theme" / a.base if a.base else None
     out = BUILD / "theme"
-    theme = build_theme.build(font, out, a.name, base_theme=base, logo=a.logo)
+    theme = build_theme.build(font, out, a.name, base_theme=base, logo=a.logo, outro=OUTRO_FILE)
     print("Tema generato in %s" % theme)
     dest = sd / "MUOS" / "theme" / a.name
     if not a.apply:
@@ -444,6 +444,7 @@ def cmd_install_names(a):
 # ------------------------------------------------------------------ install-logo
 
 LOGO_FILE = BUILD / "logo.png"          # copia del logo scelto, riusata da install-theme
+OUTRO_FILE = BUILD / "logo_outro.png"   # logo di spegnimento/riavvio
 DEFAULT_BOOT = os.environ.get("MBR_BOOT", "/run/media/deck/BOOT")
 
 
@@ -456,8 +457,14 @@ def cmd_install_logo(a):
     sd, boot = Path(a.sd), Path(a.boot)
     res = "%dx%d" % (build_theme.W, build_theme.H)
     logo = build_theme.logo_screen(src)
-    targets = [BUILD / "theme" / a.theme / res / "image" / "bootlogo.bmp",
-               sd / "MUOS" / "theme" / a.theme / res / "image" / "bootlogo.bmp"]
+    outro_src = Path(a.outro).expanduser() if a.outro else src
+    if not outro_src.is_file():
+        sys.exit("Immagine non trovata: %s" % outro_src)
+    outro = build_theme.logo_screen(outro_src)
+    targets = []
+    for base in (BUILD / "theme" / a.theme, sd / "MUOS" / "theme" / a.theme):
+        # bootlogo all'accensione; shutdown/reboot li mostra musplash allo spegnimento e al riavvio
+        targets += [base / res / "image" / n for n in ("bootlogo.bmp", "shutdown.png", "reboot.png")]
     if boot.is_dir():
         targets += [boot / "bootlogo.bmp", boot / "bat" / "battery_charge.bmp"]
     else:
@@ -469,6 +476,7 @@ def cmd_install_logo(a):
         print("\nSimulazione: aggiungi --apply.")
         return 0
     logo.save(LOGO_FILE)
+    outro.save(OUTRO_FILE)
     backup = BUILD / "boot-backup"
     for t in targets:
         if t.parent.parent.parent.is_dir() or t.is_relative_to(boot):
@@ -478,7 +486,8 @@ def cmd_install_logo(a):
                 if not b.exists():  # salva solo l'originale, non le versioni successive
                     b.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(t, b)
-            logo.save(t, format="BMP")
+            img = outro if t.name in ("shutdown.png", "reboot.png") else logo
+            img.save(t, format="BMP" if t.suffix == ".bmp" else "PNG")
     os.sync()
     print("\nFatto. Originali della partizione di avvio in %s" % backup)
     return 0
@@ -527,10 +536,12 @@ def cmd_install_kiosk(a):
              '[ -d "$R/kiosk" ] || { echo "ROOTFS non montata: $R"; exit 1; }',
              '[ -e "$U" ] || { echo "#!/bin/sh"; for f in $(cd "$R/kiosk" && find . -type f); do '
              'echo "printf %s $(cat "$R/kiosk/$f") > \\"$R/kiosk/$f\\""; done; '
-             'echo "printf %s $(cat "$R/config/settings/general/startup") > \\"$R/config/settings/general/startup\\""; } > "$U"']
+             'echo "printf %s $(cat "$R/config/settings/general/startup") > \\"$R/config/settings/general/startup\\""; '
+             'echo "printf %s $(cat "$R/config/settings/general/sound") > \\"$R/config/settings/general/sound\\""; } > "$U"']
     for k, v in KIOSK.items():
         lines.append('printf %d > "$R/kiosk/%s"' % (v, k))
-    lines += ['printf collection > "$R/config/settings/general/startup"', "sync",
+    lines += ['printf collection > "$R/config/settings/general/startup"',
+              'printf 2 > "$R/config/settings/general/sound"  # suoni del tema (avvio/spegnimento MBR)', "sync",
               'echo "Kiosk attivo. Per annullare: sudo sh $U"']
     print("\nScript per la partizione di sistema: %s" % script)
     if not a.apply:
@@ -549,7 +560,9 @@ def cmd_install_kiosk(a):
 # -------------------------------------------------------------- install-previews
 
 def cmd_install_previews(a):
-    """Copertina ferma + brano in un MP4: muOS lo riproduce (con l'audio) al posto della PNG."""
+    """Copertina ferma + brano in un MP4 (H.264 + AAC): muOS lo riproduce, con l'audio, al posto della PNG.
+
+    muOS mostra il video alla sua misura reale (con boxartscale=0), quindi va fatto piccolo."""
     import re
     import subprocess
     if not shutil.which("ffmpeg"):
@@ -588,9 +601,15 @@ def cmd_install_previews(a):
             dur = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries",
                                   "format=duration", "-of", "default=nw=1:nk=1", str(src)],
                                  check=True, capture_output=True, text=True).stdout.strip()
+            acodec = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries",
+                                     "stream=codec_name", "-of", "default=nw=1:nk=1", str(src)],
+                                    check=True, capture_output=True, text=True).stdout.strip()
+            # il lettore di muOS 2606 decodifica solo AAC, MP3 e PCM (niente Opus/Vorbis)
+            audio = ["-c:a", "copy"] if acodec in ("aac", "mp3") else ["-c:a", "aac", "-b:a", a.bitrate]
             cmd = ["ffmpeg", "-v", "error", "-y", "-loop", "1", "-framerate", "2", "-i", str(cover), "-i", str(src),
                    "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-profile:v", "baseline", "-tune", "stillimage",
-                   "-pix_fmt", "yuv420p", "-r", "2", "-c:a", "libopus", "-b:a", a.bitrate, "-ac", "2", "-ar", "48000",
+                   "-vf", "scale=%s:flags=lanczos" % a.size.replace("x", ":"),
+                   "-pix_fmt", "yuv420p", "-r", "2", *audio,
                    "-t", dur, "-movflags", "+faststart", str(out)]
             subprocess.run(cmd, check=True)
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -598,6 +617,62 @@ def cmd_install_previews(a):
         print("ok  %s" % dest)
     os.sync()
     print("\nFatto: %d anteprime. Le PNG restano accanto come riserva." % len(todo))
+    return 0
+
+
+# ---------------------------------------------------------------- install-sounds
+
+# (ruolo, video_id del brano, inizio in secondi, durata, dissolvenza finale). Scelti dal profilo di volume.
+SOUNDS = [
+    ("startup", "XNQvm-q__tQ", 46.0, 4.0, 1.2),   # OCEAN LOADERS, primo attacco pieno
+    ("shutdown", "3HSpWQH4iRs", 18.0, 4.0, 2.5),  # DOOM, entrata del riff
+    ("reboot", "3HSpWQH4iRs", 18.0, 4.0, 2.5),
+]
+
+
+def cmd_install_sounds(a):
+    """Pezzi brevi dei brani come suoni di avvio/spegnimento del tema (WAV 16 bit 44.1 kHz)."""
+    import re
+    import subprocess
+    media = Path(a.media).expanduser()
+    by_id = {}
+    for f in media.iterdir():
+        m = re.search(r"\[([A-Za-z0-9_-]{11})\]\.[^.]+$", f.name)
+        if m:
+            by_id[m.group(1)] = f
+    jobs = []
+    for role, vid, start, dur, fade in SOUNDS:
+        if vid not in by_id:
+            print("Manca il brano %s per %s, salto" % (vid, role))
+            continue
+        jobs.append((role, by_id[vid], start, dur, fade))
+        print("%-9s <- %s da %.0fs, %.0fs, dissolvenza %.1fs" % (role, by_id[vid].name, start, dur, fade))
+    dests = [BUILD / "theme" / a.theme / "sound", Path(a.sd) / "MUOS" / "theme" / a.theme / "sound"]
+    if not a.apply:
+        print("\nSimulazione: andrebbero in %s. Aggiungi --apply." % ", ".join(map(str, dests)))
+        return 0
+    out = BUILD / "sounds"
+    out.mkdir(parents=True, exist_ok=True)
+    for role, src, start, dur, fade in jobs:
+        wav = out / (role + ".wav")
+        af = "afade=t=in:d=0.05,afade=t=out:st=%.2f:d=%.2f,loudnorm=I=-14:TP=-1.5" % (dur - fade, fade)
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(start), "-t", str(dur), "-i", str(src), "-vn",
+                        "-af", af, "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le", str(wav)], check=True)
+        for d in dests:
+            if d.parent.is_dir():
+                d.mkdir(exist_ok=True)
+                shutil.copyfile(wav, d / wav.name)
+        print("ok  %s" % role)
+    script = BUILD / "sound-rootfs.sh"
+    script.write_text("\n".join([
+        "#!/bin/sh", "# Fa usare a muOS i suoni del tema (avvio/spegnimento MBR). Lancia con sudo.", "set -e",
+        'F="%s/opt/muos/config/settings/general/sound"' % a.rootfs,
+        '[ -f "$F" ] || { echo "ROOTFS non montata"; exit 1; }',
+        'U="%s"' % (BUILD / "sound-rootfs-undo.sh"),
+        '[ -e "$U" ] || printf \'#!/bin/sh\\nprintf %%s %s > "%s"\\n\' "$(cat "$F")" "$F" > "$U"',
+        'printf 2 > "$F"', "sync", 'echo "Suoni del tema attivi. Per annullare: sudo sh $U"']) + "\n", encoding="utf-8")
+    os.sync()
+    print("\nOra lancia: sudo sh %s" % script)
     return 0
 
 
@@ -636,15 +711,21 @@ def main():
     p.add_argument("--base", default="GB Dark", help="tema da cui copiare i suoni ('' per nessuno)")
     p.add_argument("--logo", default=str(LOGO_FILE), help="logo di avvio (default: quello salvato da install-logo)")
     p = add("install-logo", cmd_install_logo, "mette un'immagine come logo di avvio", apply=True)
-    p.add_argument("image", help="immagine del logo (jpg/png)")
+    p.add_argument("image", help="immagine del logo di avvio (jpg/png)")
+    p.add_argument("--outro", help="immagine per spegnimento e riavvio (default: la stessa)")
     p.add_argument("--boot", default=DEFAULT_BOOT, help="partizione di avvio montata (default: %(default)s)")
     p.add_argument("--theme", default="MBR Terminal")
     p = add("install-kiosk", cmd_install_kiosk, "collezione kiosk con i giochi scelti + script di attivazione", apply=True)
     p.add_argument("--rootfs", default="/run/media/deck/ROOTFS", help="partizione di sistema di muOS montata")
+    p = add("install-sounds", cmd_install_sounds, "pezzi dei brani come suoni di avvio e spegnimento", apply=True)
+    p.add_argument("--media", required=True, help="cartella con i file dei brani (nome con [video_id])")
+    p.add_argument("--theme", default="MBR Terminal")
+    p.add_argument("--rootfs", default="/run/media/deck/ROOTFS", help="partizione di sistema di muOS montata")
     p = add("install-previews", cmd_install_previews, "anteprime MP4: copertina + brano, suonano mentre scorri", apply=True)
     p.add_argument("--media", required=True, help="cartella con i file audio/video dei brani (nome con [video_id])")
     p.add_argument("--covers", default=str(BUILD / "covers"))
-    p.add_argument("--bitrate", default="96k", help="audio Opus (default: %(default)s)")
+    p.add_argument("--bitrate", default="160k", help="audio AAC se va convertito (default: %(default)s)")
+    p.add_argument("--size", default="272x204", help="misura del video: lo spazio a destra della lista (default: %(default)s)")
     p.add_argument("--force", action="store_true", help="rigenera anche gli MP4 gia' pronti")
     add("install-names", cmd_install_names, "scrive i titoli dei brani come nomi dei giochi", apply=True)
     p = add("theme-dump", cmd_theme_dump, "descrive un tema muOS esistente da usare come modello")

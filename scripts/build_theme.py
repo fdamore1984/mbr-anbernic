@@ -159,7 +159,7 @@ def logo_screen(src, background="000000"):
     """Logo dell'utente adattato a 640x480: intero, centrato, su sfondo pieno."""
     Image = pil()[0]
     img = Image.open(src).convert("RGB")
-    img.thumbnail((W, H), Image.LANCZOS)
+    img.thumbnail((W - 40, H - 40), Image.LANCZOS)  # margine di 20 px per lato
     out = Image.new("RGB", (W, H), "#" + background)
     out.paste(img, ((W - img.width) // 2, (H - img.height) // 2))
     return out
@@ -188,7 +188,7 @@ def preview(ttf, c):
     return img
 
 
-def build(ttf, out, name, base_theme=None, logo=None):
+def build(ttf, out, name, base_theme=None, logo=None, outro=None):
     """Crea out/<name>/ con il tema completo. Ritorna il percorso."""
     c = colors()
     theme = Path(out) / name
@@ -216,7 +216,12 @@ def build(ttf, out, name, base_theme=None, logo=None):
     fg, dim = c["text"], c["secondary"]
     Image.new("RGB", (W, H), "#" + c["background"]).save(res / "image" / "wall" / "default.png")
     if logo and Path(logo).is_file():
-        logo_screen(logo).save(res / "image" / "bootlogo.bmp")
+        img = logo_screen(logo)
+        img.save(res / "image" / "bootlogo.bmp")
+        if outro and Path(outro).is_file():
+            img = logo_screen(outro)
+        img.save(res / "image" / "shutdown.png")
+        img.save(res / "image" / "reboot.png")
     else:
         text_screen(ttf, c, [("C:\\>BOOT MUOS", fg), ("LOADING...", dim), ("_", fg)]).save(res / "image" / "bootlogo.bmp")
     text_screen(ttf, c, [("STARTING...", fg)], center=True).save(res / "image" / "wall" / "muxstart.png")
@@ -227,6 +232,11 @@ def build(ttf, out, name, base_theme=None, logo=None):
 
     if base_theme and (Path(base_theme) / "sound").is_dir():
         shutil.copytree(Path(base_theme) / "sound", theme / "sound")
+    custom = ROOT / "build" / "sounds"  # avvio/spegnimento da install-sounds
+    if custom.is_dir():
+        (theme / "sound").mkdir(exist_ok=True)
+        for wav in custom.glob("*.wav"):
+            shutil.copyfile(wav, theme / "sound" / wav.name)
     return theme
 
 
