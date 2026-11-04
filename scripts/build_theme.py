@@ -159,6 +159,8 @@ def logo_screen(src, background="000000"):
     """Logo dell'utente adattato a 640x480: intero, centrato, su sfondo pieno."""
     Image = pil()[0]
     img = Image.open(src).convert("RGB")
+    if img.size == (W, H):  # gia' impaginato (build/logo.png): rimpicciolirlo di nuovo lo restringerebbe
+        return img
     img.thumbnail((W - 40, H - 40), Image.LANCZOS)  # margine di 20 px per lato
     out = Image.new("RGB", (W, H), "#" + background)
     out.paste(img, ((W - img.width) // 2, (H - img.height) // 2))

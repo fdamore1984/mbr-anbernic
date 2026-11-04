@@ -234,3 +234,112 @@ def install_kit(a, build):
     os.sync()
     print("\nScritto %s: va lanciato con sudo (make-sd.sh lo fa da solo)." % script)
     return 0
+
+
+def write_cores(out, systems, cores):
+    """rootfs/content/<SISTEMA>/core.* dalla tabella di data/muos.json."""
+    missing = []
+    for system in sorted(systems):
+        c = cores.get(system)
+        if not c:
+            missing.append(system)
+            continue
+        d = out / "rootfs" / "content" / system
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "core.cfg").write_text("\n".join(c[k] for k in ("core", "system", "catalogue", "lookup", "assign")))
+        (d / "core.con").write_text(c["control"])
+        (d / "core.gov").write_text(c["governor"])
+        (d / "core.rac").write_text(c["retroarch"])
+    return missing
+
+
+def build_kit(a, kept, muos, kiosk, root):
+    """Crea il kit dai file sorgente, senza scheda: giochi gia' nel formato di muOS, brani, loghi, font."""
+    import subprocess
+    out = Path(a.out).expanduser()
+    roms = Path(a.roms).expanduser()
+    checks = [(roms, "cartella dei giochi (--roms)"), (Path(a.media).expanduser(), "cartella dei brani (--media)"),
+              (Path(a.logo).expanduser(), "logo di avvio (--logo)"), (Path(a.font).expanduser(), "font Topaz (--font)")]
+    if a.outro:
+        checks.append((Path(a.outro).expanduser(), "logo di spegnimento (--outro)"))
+    for p, what in checks:
+        if not p.exists():
+            sys.exit("Non trovo %s: %s" % (what, p))
+    for tool, why in (("ffmpeg", "anteprime e suoni"), ("npx", "font del tema (Node.js)")):
+        if not shutil.which(tool):
+            sys.exit("Serve %s per %s." % (tool, why))
+    try:
+        import PIL  # noqa: F401
+    except ImportError:
+        sys.exit("Serve Pillow (pip install pillow, o un ambiente virtuale).")
+
+    # 1. i giochi, con i file collegati, dentro kit/sd/ROMS
+    plan, missing, systems, games = [], [], set(), []
+    for s in kept:
+        r = s["rom"]
+        rom = roms / r["system"] / r["file"]
+        if not rom.is_file():
+            missing.append("%s/%s" % (r["system"], r["file"]))
+            continue
+        systems.add(r["system"])
+        for f in companions(rom):
+            if f.exists():
+                plan.append((f, out / "sd" / "ROMS" / f.relative_to(roms)))
+            else:
+                missing.append(str(f.relative_to(roms)))
+        games.append({"n": s["n"], "title": s["title"], "system": r["system"], "file": r["file"]})
+    print("%d giochi trovati in %s" % (len(games), roms))
+    if missing:
+        print("Mancano: %s" % ", ".join(missing))
+    no_core = [x for x in sorted(systems) if x not in muos.get("cores", {})]
+    if no_core:
+        print("Senza emulatore in data/muos.json (andra' assegnato a mano): %s" % ", ".join(no_core))
+    if not a.apply:
+        print("Simulazione: il kit verrebbe creato in %s. Aggiungi --apply." % out)
+        return 0
+    if (out / "KIT.json").exists():
+        sys.exit("%s contiene gia' un kit: scegli un'altra cartella con --out o cancellala." % out)
+
+    for src, dest in plan:
+        copy_any(src, dest)
+    sd, boot = out / "sd", out / "boot"
+    for d in (sd / "MUOS" / "init", sd / "MUOS" / "theme", boot / "bat"):
+        d.mkdir(parents=True, exist_ok=True)
+
+    # 2. i comandi di sempre, con il kit al posto della scheda
+    mbr = [sys.executable, str(root / "scripts" / "mbr.py")]
+    covers = root / "build" / "covers-272"
+    logo = ["--outro", a.outro] if a.outro else []
+    steps = [
+        ["covers", "--only-kept", "--size", "272x204", "--out", str(covers)],
+        ["install-covers", "--sd", str(sd), "--covers", str(covers), "--create", "--apply"],
+        ["install-logo", a.logo, *logo, "--sd", str(sd), "--boot", str(boot), "--apply"],
+        ["install-sounds", "--media", a.media, "--sd", str(sd), "--rootfs", str(out / "nessuna-rootfs"), "--apply"],
+        ["install-theme", "--font", a.font, "--sd", str(sd), "--base", a.base, "--apply"],
+        ["install-previews", "--media", a.media, "--covers", str(covers), "--sd", str(sd), "--apply"],
+        ["install-names", "--sd", str(sd), "--apply"],
+        ["install-kiosk", "--sd", str(sd), "--apply"],
+    ]
+    for step in steps:
+        print("\n== %s" % step[0], flush=True)
+        subprocess.run(mbr + step, check=True)
+
+    # 3. nomi a parte (sulla scheda vanno uniti a global.json), emulatori, impostazioni
+    g = sd / "MUOS" / "info" / "name" / "global.json"
+    (out / "names.json").write_text(g.read_text(encoding="utf-8"), encoding="utf-8")
+    shutil.rmtree(sd / "MUOS" / "info" / "name")
+    write_cores(out, systems, muos.get("cores", {}))
+    settings = dict(SETTINGS)
+    settings.update({"kiosk/" + k: str(v) for k, v in kiosk.items()})
+    (out / "rootfs" / "settings.json").write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+    if a.image and Path(a.image).expanduser().is_file():
+        copy_any(Path(a.image).expanduser(), out / "muos" / Path(a.image).name)
+    (out / "KIT.json").write_text(json.dumps({
+        "created": time.strftime("%Y-%m-%d %H:%M"), "muos": a.muos, "theme": "MBR Terminal",
+        "built_from": "sorgenti (build-kit)", "games": games,
+    }, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    os.sync()
+    print("\nKit pronto: %s" % out)
+    if not (out / "muos").is_dir():
+        print("Aggiungi l'immagine di muOS in %s/muos/ (o usa --image)." % out)
+    return 0

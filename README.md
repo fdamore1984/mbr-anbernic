@@ -1,8 +1,15 @@
 # mbr-anbernic
 
-Trasforma una Anbernic con muOS in una console a tema **Master Boot Record**: sulla scheda restano visibili solo i giochi abbinati ai brani della playlist WAREZ, ognuno con la copertina presa dalla miniatura del video del suo brano. Tutti gli altri giochi vengono nascosti, mai cancellati.
+Trasforma una Anbernic con muOS in una console a tema **Master Boot Record**:
+- all'accensione si apre una collezione con i giochi abbinati ai brani della playlist WAREZ;
+- ogni gioco ha la copertina presa dalla miniatura del video del suo brano;
+- fermandosi su un gioco parte il suo brano;
+- tema bianco su nero con il font Topaz, loghi e suoni MBR;
+- dal menu principale (tasto B) si raggiungono anche tutti gli altri giochi.
 
-Pensato per RG35XX Plus con muOS 2606, preparato da una Steam Deck in modalità desktop. Per ripetere l'operazione su un'altra Anbernic bastano gli stessi comandi.
+Pensato per RG35XX Plus con muOS 2606 (Andromeda), preparato da una Steam Deck in modalità desktop.
+
+**Per rifare la scheda da zero vai a [Rifare la scheda da zero](#rifare-la-scheda-da-zero).**
 
 ## Stato
 
@@ -11,7 +18,7 @@ Provato su una RG35XX Plus con muOS 2606 (novembre 2026): funziona.
 | Parte | Stato |
 |---|---|
 | 42 brani della playlist, 41 con un gioco (`data/songs.json`) | fatto; Ocean Loaders non e' un gioco (e' il suono di avvio) |
-| Solo i giochi scelti visibili (`hide`), gli altri in `ROMS_HIDDEN` | provato sulla console |
+| Altri giochi nascosti in `ROMS_HIDDEN` (`hide`/`restore`) | provato; ora rimessi in `ROMS`, raggiungibili da Esplora |
 | Copertine 272x204 dalle miniature dei video | provato |
 | Anteprima con il brano: fermandosi su un gioco parte la sua musica | provato |
 | Tema "MBR Terminal": Topaz, bianco su nero | provato |
@@ -19,13 +26,21 @@ Provato su una RG35XX Plus con muOS 2606 (novembre 2026): funziona.
 | Suoni di avvio e spegnimento (pezzi dei brani) | provato |
 | Modalità kiosk: all'accensione la collezione MBR; dal menu principale (B) Esplora porta a tutti gli altri giochi | provato |
 | Giochi DOS (DOSBox Pure), ScummVM, Amiga (PUAE 2021), PlayStation multi-disco (.m3u) | installati, **da provare** |
+| Kit privato: `export-kit`, `build-kit`, `install-kit` | provati su cartelle e su una scheda finta |
+| `make-sd.sh flash` / `setup` su una scheda vera | **non ancora provati** (controlli di sicurezza si) |
 
 ## Cosa serve
 
-- Python 3.8 o superiore (c'è già su SteamOS)
-- Pillow, per `covers` e `install-theme`: `pip install --user pillow`
-- Node.js (comando `npx`), solo per `install-theme`: converte il font nel formato di muOS. SteamOS non ce l'ha: scarica il pacchetto `linux-x64` da nodejs.org, scompattalo in `~/.local/opt` e collega `node`, `npm` e `npx` in `~/.local/bin` (non serve sudo). Senza `npx` il tema non viene installato.
-- la scheda SD di muOS montata (default `/run/media/deck/MustardOS`, cambiabile con `--sd` o con la variabile `MBR_SD`)
+**Per rifare una scheda da un kit** (`make-sd.sh`, `install-kit`):
+- Linux con udisks: SteamOS va bene, come quasi tutte le distribuzioni desktop. Su Windows e macOS non funziona;
+- `python3` (3.8 o superiore), `gzip`, `dd`, `sudo`;
+- un lettore di schede SD e una scheda da almeno 8 GB (il kit pesa circa 3,5 GB più muOS).
+
+**Per creare il kit dai file sorgente** (`build-kit`) o usare i singoli comandi di generazione, in più:
+- **Pillow**: `pip install --user pillow`. Su SteamOS non c'è pip: crea un ambiente virtuale con `python3 -m venv .venv && .venv/bin/pip install pillow` e usa `.venv/bin/python` al posto di `python3`;
+- **ffmpeg**, per le anteprime con il brano e i suoni (su SteamOS c'è gia');
+- **Node.js** (comando `npx`), per convertire il font nel formato di muOS. SteamOS non ce l'ha: scarica il pacchetto `linux-x64` da nodejs.org, scompattalo in `~/.local/opt` e collega `node`, `npm` e `npx` in `~/.local/bin` (non serve sudo);
+- una connessione a internet, per scaricare le miniature dei video da YouTube.
 
 ## Uso
 
@@ -79,41 +94,114 @@ I file dei brani in `cartella_brani` vengono riconosciuti se il nome contiene il
 Tutto il lavoro sta in due posti:
 
 - **questo repository**: i comandi e le configurazioni;
-- **un kit privato**, cioè una cartella tua, mai su GitHub, con i giochi, i brani, le copertine, il tema completo, i loghi e le impostazioni di muOS.
+- **un kit privato**, cioè una cartella tua, mai su GitHub, con giochi, brani, copertine, tema completo, loghi e impostazioni di muOS. Come crearlo è spiegato [piu' sotto](#creare-il-kit).
 
-**Creare il kit**, dalla scheda che funziona (circa 3,3 GB):
+### 1. Scarica muOS
+
+Scarica **muOS 2606.0 Andromeda per RG35XX Plus** dal sito ufficiale di MustardOS (https://muos.dev). Il file si chiama come `MustardOS_RG35XX-PLUS_2606.0_ANDROMEDA-<codice>.img.gz` e va messo nella cartella `muos/` del kit. Non scompattarlo: lo script lo legge compresso.
+
+Il kit è stato fatto con questa versione, scritta in `KIT.json`. Con una versione diversa le impostazioni potrebbero non corrispondere: provala prima su una scheda di riserva.
+
+### 2. Trova il nome della scheda
+
+Inserisci la scheda e lancia:
 
 ```bash
-python3 scripts/mbr.py export-kit --apply      # crea ~/mbr-kit (cambiabile con --out)
+lsblk -o NAME,SIZE,RM,TYPE,LABEL,MOUNTPOINT
 ```
 
-Aggiungi l'immagine di muOS: con `--image MustardOS_...img.gz`, oppure copiala tu in `~/mbr-kit/muos/`. Il kit va conservato su un disco esterno o su un cloud privato.
+Cerca il **disco intero** (`TYPE` = `disk`) con la misura della tua scheda (una da 64 GB appare come circa `57,6G`):
 
-**Preparare una scheda nuova**, con 3 comandi e un avvio nella console:
+- nel lettore interno della Steam Deck di solito è **`/dev/mmcblk0`**;
+- in un lettore USB è `/dev/sdX`, con `RM` = 1;
+- **non** usare un nome che finisce con un numero di partizione (`mmcblk0p6`, `sdb1`);
+- **mai** `nvme0n1`: è il disco della Deck.
+
+Se hai dubbi, togli la scheda, rilancia `lsblk` e guarda quale riga è sparita.
+
+### 3. Scrivi muOS sulla scheda
 
 ```bash
-git clone https://github.com/fdamore1984/mbr-anbernic && cd mbr-anbernic
-scripts/make-sd.sh flash /dev/mmcblk0 ~/mbr-kit   # scrive muOS (cancella la scheda, chiede conferma)
-#   -> scheda nell'Anbernic, accendi, aspetta il menu di muOS, spegni, rimettila nel computer
-scripts/make-sd.sh setup ~/mbr-kit                # giochi, brani, tema, loghi, kiosk
+git clone https://github.com/fdamore1984/mbr-anbernic
+cd mbr-anbernic
+scripts/make-sd.sh flash /dev/mmcblk0 ~/mbr-kit
 ```
 
-Il primo avvio nella console serve perché muOS allarghi le partizioni e crei le sue cartelle.
+Lo script mostra il disco e **cancella tutto quello che c'e' sopra** solo dopo che hai riscritto il nome del disco. Poi chiede la password di `sudo`. La scrittura dura qualche minuto.
 
-Note su `make-sd.sh`:
+Si rifiuta di andare avanti se il disco non e' rimovibile, se e' una singola partizione o se contiene il sistema.
 
-- `flash` si rifiuta di scrivere su un disco non rimovibile o su una singola partizione, e chiede di riscrivere il nome del disco prima di cancellarlo.
-- `setup` riconosce le partizioni dalle etichette (`MustardOS`, `BOOT`, `ROOTFS`) e alla fine le smonta tutte.
-- Le modifiche alla partizione di sistema passano da `sudo` e lasciano `build/kit-rootfs-undo.sh` per tornare indietro.
-- Copia soltanto file: non servono Pillow, ffmpeg o Node.
+### 4. Primo avvio nella console
 
-Il kit vale per la versione di muOS con cui è stato creato (scritta in `KIT.json`). Con una versione nuova di muOS, prova prima su una scheda di riserva.
+1. Metti la scheda nell'Anbernic, nello slot **TF1**, e accendi.
+2. Al primo avvio muOS allarga le partizioni fino a riempire la scheda e crea le sue cartelle: puo' metterci qualche minuto. Potrebbe anche chiederti lingua, data o fuso orario: rispondi pure.
+3. Quando vedi il **menu principale di muOS**, spegni dal menu (non togliendo la scheda).
+4. Rimetti la scheda nel computer.
 
-## Su un'altra Anbernic
+### 5. Installa il kit
+
+```bash
+scripts/make-sd.sh setup ~/mbr-kit
+```
+
+Lo script:
+
+1. riconosce le partizioni dalle etichette (`MustardOS`, `BOOT`, `ROOTFS`) e le monta;
+2. copia giochi, copertine, anteprime con i brani, tema, collezione e suono di avvio;
+3. mette il logo nella partizione di avvio;
+4. con `sudo`, scrive le impostazioni di muOS nella partizione di sistema: kiosk, avvio sulla collezione, suoni, tema attivo ed emulatore di ogni cartella. Lascia `build/kit-rootfs-undo.sh` per tornare indietro;
+5. smonta tutte le partizioni.
+
+Quando dice "Scheda pronta", toglila e mettila nell'Anbernic. Se al primo avvio il tema non e' MBR Terminal, attivalo da Configuration → Customisation → Theme.
+
+## Creare il kit
+
+### Dalla scheda che funziona (consigliato)
+
+```bash
+python3 scripts/mbr.py export-kit --apply --image MustardOS_...img.gz   # crea ~/mbr-kit (cambia con --out)
+```
+
+Copia esattamente cio' che c'e' sulla scheda: i giochi della collezione con i file collegati (tracce dei CD, dischi, cartelle ScummVM), copertine, anteprime, tema, collezione, loghi, impostazioni ed emulatori assegnati. Conserva il kit su un disco esterno o su un cloud privato.
+
+### Dai file sorgente, senza scheda
+
+Serve se hai perso sia la scheda sia il kit. Prepara:
+
+| Cosa | Formato |
+|---|---|
+| **Giochi** (`--roms`) | una cartella come `ROMS` di muOS: `<cartella>/<SISTEMA>/<file>`, con i nomi di `data/songs.json`. Vedi sotto i formati speciali |
+| **Brani** (`--media`) | una cartella di file audio o video, chiamati `... [<video_id>].mp4` (come li salva un download da YouTube) oppure `NN - Titolo.mp3` (NN = numero del brano nella playlist) |
+| **Logo di avvio** (`--logo`) | un'immagine; diventa anche il salvaschermo |
+| **Logo di spegnimento** (`--outro`) | facoltativo |
+| **Font** (`--font`) | `topaz.ttf` |
+
+Formati speciali dei giochi, come li vuole muOS:
+
+- **DOS** (`DOS/`): un `.zip` con il gioco e un `DOSBOX.BAT` che lo avvia (per esempio `C:` e `DOOM2.EXE`). I CD vanno nello zip come `.iso`;
+- **ScummVM** (`SCUMMVM/`): un file `Nome.scummvm` che contiene l'identificativo ScummVM (`loom`, `monkey`, `zak`) e accanto la cartella `.Nome/` con i file del gioco;
+- **piu' dischi** (`PS/`, `AMIGA/`): un `.m3u` con un disco per riga e i dischi in una sottocartella nascosta (`.Red Alert/`, `.Dune/`);
+- **CD PlayStation**: `.cue` con i suoi `.bin` nella stessa cartella.
+
+```bash
+.venv/bin/python scripts/mbr.py build-kit --roms ROM --media BRANI \
+    --logo logo_start.png --outro logo_outro.jpg --font topaz.ttf \
+    --image MustardOS_...img.gz --apply
+```
+
+`build-kit` esegue in ordine `covers`, `install-covers`, `install-logo`, `install-sounds`, `install-theme`, `install-previews`, `install-names` e `install-kiosk`, usando il kit al posto della scheda. Aggiunge gli emulatori delle cartelle da `data/muos.json` (voce `cores`) e le impostazioni di muOS.
+
+Il risultato e' uguale a quello di `export-kit`, con un'eccezione: i suoni di navigazione del menu vengono copiati dal tema "GB Dark" di muOS, che si trova solo su una scheda. Con una scheda muOS montata aggiungi `--base "GB Dark"`; senza, il menu resta muto e restano solo i suoni di avvio e spegnimento.
+
+## Su un'altra Anbernic o con altri giochi
 
 1. Monta la scheda e lancia `check`: elenca i giochi che non trova con quel nome esatto.
-2. Se i nomi dei file sono diversi, correggi il campo `rom` in `data/songs.json`.
-3. Lancia `inspect` e confronta con `data/muos.json`, poi procedi con `hide`, `covers` e `install-covers`.
+2. Correggi il campo `rom` in `data/songs.json` (sistema = nome della cartella in `ROMS`, file = nome esatto).
+3. Per una cartella che non e' ancora in `data/muos.json`, aggiungi:
+   - il nome del catalogo in `systems`;
+   - l'emulatore in `cores`. Lo trovi in `share/info/content/<CARTELLA>/core.cfg` della partizione di sistema, dopo averla aperta una volta dall'esploratore di muOS.
+4. Rilancia i comandi di [Uso](#uso), oppure `build-kit` e poi `make-sd.sh setup`.
+5. Con un altro modello cambiano la risoluzione (il tema e' fatto per 640x480) e la misura delle copertine: lancia prima `inspect` e `theme-dump`.
 
 `covers` accetta `--size` (usa `272x204`, lo spazio accanto alla lista del tema) e `--fit cover|contain`.
 

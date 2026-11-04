@@ -14,5 +14,108 @@
     "DOS": "PC DOS",
     "SCUMMVM": "ScummVM",
     "AMIGA": "Commodore Amiga"
+  },
+  "_cores_note": "Emulatore assegnato a ogni cartella (share/info/content/<CARTELLA>/core.*), letto da muOS 2606 sulla RG35XX Plus. Serve a build-kit e al kit: dal kiosk muOS non li crea da solo.",
+  "cores": {
+    "AMIGA": {
+      "core": "puae2021_libretro.so",
+      "system": "Commodore Amiga",
+      "catalogue": "Commodore Amiga",
+      "lookup": "0",
+      "assign": "mu-puae 2021",
+      "control": "system",
+      "governor": "schedutil",
+      "retroarch": "false"
+    },
+    "DOS": {
+      "core": "dosbox_pure_libretro.so",
+      "system": "PC DOS",
+      "catalogue": "PC DOS",
+      "lookup": "0",
+      "assign": "mu-dosbox-pure",
+      "control": "system",
+      "governor": "performance",
+      "retroarch": "false"
+    },
+    "FC": {
+      "core": "fceumm_libretro.so",
+      "system": "Nintendo NES - Famicom",
+      "catalogue": "Nintendo NES - Famicom",
+      "lookup": "0",
+      "assign": "mu-fceumm",
+      "control": "system",
+      "governor": "schedutil",
+      "retroarch": "false"
+    },
+    "GBC": {
+      "core": "gambatte_libretro.so",
+      "system": "Nintendo Game Boy Color",
+      "catalogue": "Nintendo Game Boy Color",
+      "lookup": "0",
+      "assign": "mu-gambatte",
+      "control": "system",
+      "governor": "schedutil",
+      "retroarch": "false"
+    },
+    "MD": {
+      "core": "genesis_plus_gx_libretro.so",
+      "system": "Sega Mega Drive - Genesis",
+      "catalogue": "Sega Mega Drive - Genesis",
+      "lookup": "0",
+      "assign": "mu-genesis plus gx",
+      "control": "system",
+      "governor": "schedutil",
+      "retroarch": "false"
+    },
+    "PCE": {
+      "core": "mednafen_pce_fast_libretro.so",
+      "system": "NEC PC Engine",
+      "catalogue": "NEC PC Engine",
+      "lookup": "0",
+      "assign": "mu-beetle pce fast",
+      "control": "system",
+      "governor": "schedutil",
+      "retroarch": "false"
+    },
+    "PS": {
+      "core": "pcsx_rearmed_libretro.so",
+      "system": "Sony PlayStation",
+      "catalogue": "Sony PlayStation",
+      "lookup": "0",
+      "assign": "mu-pcsx rearmed",
+      "control": "system",
+      "governor": "schedutil",
+      "retroarch": "false"
+    },
+    "SCUMMVM": {
+      "core": "ext-scummvm",
+      "system": "ScummVM",
+      "catalogue": "ScummVM",
+      "lookup": "0",
+      "assign": "ext-scummvm",
+      "control": "system",
+      "governor": "schedutil",
+      "retroarch": "false"
+    },
+    "SFC": {
+      "core": "snes9x_libretro.so",
+      "system": "Nintendo SNES - SFC",
+      "catalogue": "Nintendo SNES - SFC",
+      "lookup": "0",
+      "assign": "mu-snes9x",
+      "control": "system",
+      "governor": "schedutil",
+      "retroarch": "false"
+    },
+    "SMS": {
+      "core": "smsplus_libretro.so",
+      "system": "Sega Master System",
+      "catalogue": "Sega Master System",
+      "lookup": "0",
+      "assign": "mu-sms plus gx",
+      "control": "system",
+      "governor": "schedutil",
+      "retroarch": "false"
+    }
   }
 }

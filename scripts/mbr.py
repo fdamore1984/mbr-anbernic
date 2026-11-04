@@ -733,6 +733,12 @@ def cmd_export_kit(a):
     return kit.export_kit(a, kept(), load_json(MUOS_FILE), KIOSK, a.theme)
 
 
+def cmd_build_kit(a):
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import kit
+    return kit.build_kit(a, kept(), load_json(MUOS_FILE), KIOSK, ROOT)
+
+
 def cmd_install_kit(a):
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import kit
@@ -797,6 +803,16 @@ def main():
     p.add_argument("--rootfs", default="/run/media/deck/ROOTFS")
     p.add_argument("--image", help="immagine di muOS (.img.gz) da includere nel kit")
     p.add_argument("--theme", default="MBR Terminal")
+    p = add("build-kit", cmd_build_kit, "crea il kit dai file sorgente, senza scheda", sd=False, apply=True)
+    p.add_argument("--roms", required=True, help="giochi gia' nel formato di muOS: <cartella>/<SISTEMA>/<file>")
+    p.add_argument("--media", required=True, help="brani: '... [video_id].ext' oppure 'NN - Titolo.ext'")
+    p.add_argument("--logo", required=True, help="logo di avvio (anche salvaschermo)")
+    p.add_argument("--outro", help="logo di spegnimento e riavvio (default: il logo di avvio)")
+    p.add_argument("--font", required=True, help="topaz.ttf")
+    p.add_argument("--image", help="immagine di muOS (.img.gz) da includere")
+    p.add_argument("--muos", default="2606.0_ANDROMEDA", help="versione di muOS (default: %(default)s)")
+    p.add_argument("--base", default="", help="tema da cui copiare i suoni di navigazione (serve una scheda montata)")
+    p.add_argument("--out", default=str(Path.home() / "mbr-kit"))
     p = add("install-kit", cmd_install_kit, "rimette il kit su una scheda appena preparata", apply=True)
     p.add_argument("--kit", required=True, help="cartella del kit")
     p.add_argument("--boot", default=DEFAULT_BOOT)
