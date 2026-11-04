@@ -26,6 +26,38 @@ UA = {"User-Agent": "mbr-anbernic/0.1"}
 BG = (0, 0, 0)  # sfondo delle copertine, come il tema (bianco su nero)
 
 
+BACKUP_DIR = "MBR_BACKUP"  # sulla scheda: copie degli originali e script per annullare, legati a quella scheda
+
+
+def backup_dir(sd):
+    return Path(sd) / BACKUP_DIR
+
+
+def ffmpeg_exe():
+    """ffmpeg di sistema, oppure quello del pacchetto imageio-ffmpeg (installato da ./mbr)."""
+    exe = shutil.which("ffmpeg")
+    if exe:
+        return exe
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        sys.exit("Serve ffmpeg: lancia i comandi con ./mbr, che lo installa da solo.")
+
+
+def probe_audio(src):
+    """(durata in secondi come testo, codec audio) letti dall'intestazione stampata da ffmpeg -i."""
+    import re
+    import subprocess
+    err = subprocess.run([ffmpeg_exe(), "-hide_banner", "-i", str(src)], capture_output=True, text=True).stderr
+    m = re.search(r"Duration: (\d+):(\d+):(\d+(?:\.\d+)?)", err)
+    if not m:
+        sys.exit("Durata non leggibile: %s" % src)
+    dur = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+    c = re.search(r"Audio: (\w+)", err)
+    return "%.3f" % dur, (c.group(1) if c else "")
+
+
 def load_json(path):
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
@@ -188,7 +220,7 @@ def cmd_hide(a):
             moved += 1
     finally:
         save_manifest(hidden_root, manifest)
-    print("Spostati %d file. Per ripristinare: python3 scripts/mbr.py restore --apply" % moved)
+    print("Spostati %d file. Per ripristinare: ./mbr restore --apply" % moved)
     return 0
 
 
@@ -259,7 +291,7 @@ def cmd_covers(a):
     try:
         from PIL import Image, ImageOps
     except ImportError:
-        sys.exit("Serve Pillow: pip install --user pillow")
+        sys.exit("Serve Pillow: lancia i comandi con ./mbr")
     try:
         w, h = (int(x) for x in a.size.lower().split("x"))
     except ValueError:
@@ -469,6 +501,7 @@ LOGO_FILE = BUILD / "logo.png"          # copia del logo scelto, riusata da inst
 OUTRO_FILE = BUILD / "logo_outro.png"   # logo di spegnimento/riavvio
 SAVER_FILE = BUILD / "screensaver.png"  # logo che rimbalza nel salvaschermo DVD
 DEFAULT_BOOT = os.environ.get("MBR_BOOT", "/run/media/deck/BOOT")
+DEFAULT_ROOTFS = os.environ.get("MBR_ROOTFS", "/run/media/deck/ROOTFS")
 
 
 def cmd_install_logo(a):
@@ -506,7 +539,7 @@ def cmd_install_logo(a):
         if base.is_dir():
             saver.save(base / res / "image" / "screensaver.png")
             print("salvaschermo -> %s" % (base / res / "image" / "screensaver.png"))
-    backup = BUILD / "boot-backup"
+    backup = backup_dir(sd) / "boot"
     for t in targets:
         if t.parent.parent.parent.is_dir() or t.is_relative_to(boot):
             t.parent.mkdir(parents=True, exist_ok=True)
@@ -562,9 +595,10 @@ def cmd_install_kiosk(a):
     script = BUILD / "kiosk-rootfs.sh"
     rootfs = Path(a.rootfs) / "opt" / "muos"
     lines = ["#!/bin/sh", "# Attiva la modalita' kiosk e l'avvio sulla collezione. Lancia con sudo.",
-             "# Salva i valori attuali in kiosk-rootfs-undo.sh (stessa cartella).", "set -e",
-             'R="%s"' % rootfs, 'U="%s"' % (BUILD / "kiosk-rootfs-undo.sh"),
+             "# Salva i valori attuali in %s/kiosk-rootfs-undo.sh sulla scheda." % BACKUP_DIR, "set -e",
+             'R="%s"' % rootfs, 'U="%s"' % (backup_dir(sd) / "kiosk-rootfs-undo.sh"),
              '[ -d "$R/kiosk" ] || { echo "ROOTFS non montata: $R"; exit 1; }',
+             'mkdir -p "$(dirname "$U")"',
              '[ -e "$U" ] || { echo "#!/bin/sh"; for f in $(cd "$R/kiosk" && find . -type f); do '
              'echo "printf %s $(cat "$R/kiosk/$f") > \\"$R/kiosk/$f\\""; done; '
              'echo "printf %s $(cat "$R/config/settings/general/startup") > \\"$R/config/settings/general/startup\\""; '
@@ -574,7 +608,6 @@ def cmd_install_kiosk(a):
     lines += ['printf collection > "$R/config/settings/general/startup"',
               'printf 2 > "$R/config/settings/general/sound"  # suoni del tema (avvio/spegnimento MBR)', "sync",
               'echo "Kiosk attivo. Per annullare: sudo sh $U"']
-    print("\nScript per la partizione di sistema: %s" % script)
     if not a.apply:
         print("Simulazione: aggiungi --apply.")
         return 0
@@ -584,7 +617,9 @@ def cmd_install_kiosk(a):
     BUILD.mkdir(exist_ok=True)
     script.write_text("\n".join(lines) + "\n", encoding="utf-8")
     os.sync()
-    print("Scritte %d voci. Solo se il kiosk non e' ancora attivo: sudo sh %s" % (len(entries), script))
+    print("Scritte %d voci." % len(entries))
+    if not getattr(a, "in_setup", False):
+        print("Per attivare il kiosk: sudo sh %s" % script)
     return 0
 
 
@@ -594,10 +629,8 @@ def cmd_install_previews(a):
     """Copertina ferma + brano in un MP4 (H.264 + AAC): muOS lo riproduce, con l'audio, al posto della PNG.
 
     muOS mostra il video alla sua misura reale (con boxartscale=0), quindi va fatto piccolo."""
-    import re
     import subprocess
-    if not shutil.which("ffmpeg"):
-        sys.exit("Serve ffmpeg.")
+    ffmpeg = ffmpeg_exe()
     media = Path(a.media).expanduser()
     by_id = media_files(media)
     sd = Path(a.sd)
@@ -625,15 +658,10 @@ def cmd_install_previews(a):
     for s, cover, src, out, dest in todo:
         if not out.is_file() or a.force:
             out.parent.mkdir(parents=True, exist_ok=True)
-            dur = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries",
-                                  "format=duration", "-of", "default=nw=1:nk=1", str(src)],
-                                 check=True, capture_output=True, text=True).stdout.strip()
-            acodec = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries",
-                                     "stream=codec_name", "-of", "default=nw=1:nk=1", str(src)],
-                                    check=True, capture_output=True, text=True).stdout.strip()
+            dur, acodec = probe_audio(src)
             # il lettore di muOS 2606 decodifica solo AAC, MP3 e PCM (niente Opus/Vorbis)
             audio = ["-c:a", "copy"] if acodec == "aac" else ["-c:a", "aac", "-b:a", a.bitrate]  # AAC provato sulla console
-            cmd = ["ffmpeg", "-v", "error", "-y", "-loop", "1", "-framerate", "2", "-i", str(cover), "-i", str(src),
+            cmd = [ffmpeg, "-v", "error", "-y", "-loop", "1", "-framerate", "2", "-i", str(cover), "-i", str(src),
                    "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-profile:v", "baseline", "-tune", "stillimage",
                    "-vf", "scale=%s:flags=lanczos" % a.size.replace("x", ":"),
                    "-pix_fmt", "yuv420p", "-r", "2", *audio,
@@ -693,7 +721,7 @@ def cmd_install_sounds(a):
     for role, src, start, dur, fade in jobs:
         wav = out / (role + ".wav")
         af = "afade=t=in:d=0.05,afade=t=out:st=%.2f:d=%.2f,loudnorm=I=-14:TP=-1.5" % (dur - fade, fade)
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(start), "-t", str(dur), "-i", str(src), "-vn",
+        subprocess.run([ffmpeg_exe(), "-v", "error", "-y", "-ss", str(start), "-t", str(dur), "-i", str(src), "-vn",
                         "-af", af, "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le", str(wav)], check=True)
         for d in dests:
             if d.parent.is_dir():
@@ -703,7 +731,8 @@ def cmd_install_sounds(a):
     # Il "chime" di muOS si perde quando si parte direttamente dalla collezione (kiosk): lo suona
     # invece uno script utente in MUOS/init appena PipeWire e' pronto.
     init = Path(a.sd) / "MUOS" / "init"
-    if init.is_dir() and (out / "startup.wav").is_file():
+    if init.parent.is_dir() and (out / "startup.wav").is_file():
+        init.mkdir(exist_ok=True)
         shutil.copyfile(out / "startup.wav", init / "mbr-startup.wav")
         (init / "mbr-startup.sh").write_text(INIT_SCRIPT, encoding="utf-8")
         print("ok  %s" % (init / "mbr-startup.sh"))
@@ -712,7 +741,8 @@ def cmd_install_sounds(a):
     lines = ["#!/bin/sh", "# Suoni del tema, script utente all'avvio, chime di muOS spento. Lancia con sudo.", "set -e",
              'C="%s/opt/muos/config/settings"' % a.rootfs,
              '[ -d "$C/general" ] || { echo "ROOTFS non montata"; exit 1; }',
-             'U="%s"' % (BUILD / "sound-rootfs-undo.sh"),
+             'U="%s"' % (backup_dir(a.sd) / "sound-rootfs-undo.sh"),
+             'mkdir -p "$(dirname "$U")"',
              '[ -e "$U" ] || echo "#!/bin/sh" > "$U"']
     for k, v in keys:
         lines += ['F="$C/%s"' % k,
@@ -721,7 +751,134 @@ def cmd_install_sounds(a):
     lines += ["sync", 'echo "Fatto. Per annullare: sudo sh $U"']
     script.write_text("\n".join(lines) + "\n", encoding="utf-8")
     os.sync()
-    print("\nOra lancia: sudo sh %s" % script)
+    if not getattr(a, "in_setup", False):
+        print("\nOra lancia: sudo sh %s" % script)
+    return 0
+
+
+# ------------------------------------------------------------------------ setup
+
+FILES_DIR = ROOT / "miei-file"   # font, loghi e brani dell'utente (fuori da git)
+FONT_URL = "https://mbrserver.com/topaz.ttf"
+THEME = "MBR Terminal"
+COVERS = BUILD / "covers-272"
+IMAGE_EXT = (".png", ".jpg", ".jpeg")
+
+
+def find_image(folder, stem):
+    for ext in IMAGE_EXT:
+        for p in (folder / (stem + ext), folder / (stem + ext.upper())):
+            if p.is_file():
+                return p
+    return None
+
+
+def get_font(folder):
+    found = sorted(folder.glob("*.ttf")) if folder.is_dir() else []
+    if found:
+        return found[0]
+    font = BUILD / "topaz.ttf"
+    if not font.is_file():
+        print("Scarico il font Topaz da %s" % FONT_URL)
+        data = fetch(FONT_URL)
+        if not data:
+            sys.exit("Font non scaricabile: mettilo in %s" % folder)
+        BUILD.mkdir(exist_ok=True)
+        font.write_bytes(data)
+    return font
+
+
+def unmount(paths):
+    """Smonta le partizioni della scheda: se ROOTFS resta montata quando si toglie la scheda, si rovina."""
+    import subprocess
+    os.sync()
+    for path in paths:
+        dev = subprocess.run(["findmnt", "-n", "-o", "SOURCE", "--mountpoint", str(path)],
+                             capture_output=True, text=True).stdout.strip()
+        if not dev:
+            continue
+        cmd = ["udisksctl", "unmount", "-b", dev] if shutil.which("udisksctl") else ["sudo", "umount", dev]
+        ok = subprocess.run(cmd).returncode == 0
+        print("%s %s (%s)" % ("smontata" if ok else "NON SMONTATA", path, dev))
+        if not ok:
+            print("  smontala a mano prima di togliere la scheda: %s" % " ".join(cmd))
+
+
+def cmd_setup(a):
+    """Tutta la procedura, nell'ordine giusto, su una scheda muOS appena preparata o gia' usata."""
+    import subprocess
+    sd, files = Path(a.sd), Path(a.files).expanduser()
+    if not (sd / "ROMS").is_dir() or not (sd / "MUOS").is_dir():
+        sys.exit("Scheda muOS non trovata in %s: inseriscila (dopo averla avviata una volta sulla console)"
+                 " oppure indica dove e' montata con --sd." % sd)
+    try:
+        import PIL  # noqa: F401
+    except ImportError:
+        sys.exit("Manca Pillow: lancia i comandi con ./mbr invece che con python3.")
+    ffmpeg_exe()
+    if not shutil.which("npx"):
+        sys.exit("Manca Node.js (npx): lancia i comandi con ./mbr, che lo scarica da solo.")
+
+    media = files if files.is_dir() and media_files(files) else None
+    logo, outro = (find_image(files, "logo"), find_image(files, "logo_spegnimento")) if files.is_dir() else (None, None)
+    font = get_font(files)
+    print("Scheda:   %s" % sd)
+    print("Font:     %s" % font)
+    print("Logo:     %s" % (logo or "nessuno (logo di testo del tema)"))
+    print("Brani:    %s" % ("%d in %s" % (len(media_files(files)), files) if media else
+                            "nessuno in %s (niente musica sui giochi ne' suoni)" % files))
+
+    def ns(**kw):
+        return argparse.Namespace(sd=a.sd, apply=a.apply, in_setup=True, **kw)
+
+    def step(title):
+        print("\n=== %s ===" % title)
+
+    step("Giochi presenti")
+    if cmd_check(ns()) and not a.allow_missing:
+        print("\nCorreggi il campo 'rom' in data/songs.json, oppure rilancia con --allow-missing.")
+        return 1
+    step("Nascondo gli altri giochi")
+    cmd_hide(ns(allow_missing=True))
+    step("Copertine")
+    cmd_covers(argparse.Namespace(out=str(COVERS), size="272x204", fit="cover", only_kept=True))
+    cmd_install_covers(ns(covers=str(COVERS), create=True))
+    step("Nomi dei giochi")
+    cmd_install_names(ns())
+    if logo:
+        step("Logo")
+        cmd_install_logo(ns(image=str(logo), outro=str(outro) if outro else None, boot=a.boot, theme=THEME))
+    if media:
+        step("Suoni di avvio e spegnimento")
+        cmd_install_sounds(ns(media=str(files), theme=THEME, rootfs=a.rootfs))
+    step("Tema")
+    cmd_install_theme(ns(font=str(font), name=THEME, base="GB Dark", logo=str(LOGO_FILE)))
+    if media:
+        step("Musica sui giochi")
+        cmd_install_previews(ns(media=str(files), covers=str(COVERS), bitrate="160k", size="272x204", force=False))
+    step("Avvio sulla collezione MBR")
+    cmd_install_kiosk(ns(rootfs=a.rootfs))
+
+    scripts = [BUILD / "sound-rootfs.sh"] if media else []
+    scripts.append(BUILD / "kiosk-rootfs.sh")
+    step("Partizione di sistema (ROOTFS)")
+    if not a.apply:
+        print("Qui verrebbe chiesta la password per sudo, poi la scheda verrebbe smontata.")
+        print("\nSIMULAZIONE: sulla scheda non e' cambiato nulla. Se va bene, rilancia con --apply.")
+        return 0
+    if not (Path(a.rootfs) / "opt" / "muos").is_dir():
+        print("ROOTFS non montata in %s: avvio sulla collezione e suoni non attivati." % a.rootfs)
+        print("Montala (o indica --rootfs) e lancia: " + "; ".join("sudo sh %s" % s for s in scripts))
+    else:
+        print("Serve la password di sudo per scrivere sulla partizione di sistema di muOS.", flush=True)
+        for s in scripts:
+            subprocess.run(["sudo", "sh", str(s)], check=True)
+    if a.no_unmount:
+        print("\nFatto. Prima di togliere la scheda smonta anche ROOTFS e BOOT.")
+        return 0
+    step("Smonto la scheda")
+    unmount([a.rootfs, a.sd, a.boot])
+    print("\nFatto: puoi togliere la scheda e metterla nella console.")
     return 0
 
 
@@ -740,6 +897,12 @@ def main():
         p.set_defaults(fn=fn)
         return p
 
+    p = add("setup", cmd_setup, "tutta la procedura in un colpo (simulazione senza --apply)", apply=True)
+    p.add_argument("--files", default=str(FILES_DIR), help="cartella con font, logo e brani (default: %(default)s)")
+    p.add_argument("--boot", default=DEFAULT_BOOT, help="partizione di avvio montata (default: %(default)s)")
+    p.add_argument("--rootfs", default=DEFAULT_ROOTFS, help="partizione di sistema montata (default: %(default)s)")
+    p.add_argument("--allow-missing", action="store_true", help="procedi anche se mancano dei giochi scelti")
+    p.add_argument("--no-unmount", action="store_true", help="lascia la scheda montata alla fine")
     add("list", cmd_list, "mostra i 42 brani e il gioco abbinato", sd=False)
     add("check", cmd_check, "verifica che i giochi scelti esistano sulla scheda")
     add("inspect", cmd_inspect, "descrive la struttura di muOS sulla scheda")
@@ -765,11 +928,11 @@ def main():
     p.add_argument("--boot", default=DEFAULT_BOOT, help="partizione di avvio montata (default: %(default)s)")
     p.add_argument("--theme", default="MBR Terminal")
     p = add("install-kiosk", cmd_install_kiosk, "collezione kiosk con i giochi scelti + script di attivazione", apply=True)
-    p.add_argument("--rootfs", default="/run/media/deck/ROOTFS", help="partizione di sistema di muOS montata")
+    p.add_argument("--rootfs", default=DEFAULT_ROOTFS, help="partizione di sistema di muOS montata")
     p = add("install-sounds", cmd_install_sounds, "pezzi dei brani come suoni di avvio e spegnimento", apply=True)
     p.add_argument("--media", required=True, help="cartella con i file dei brani (nome con [video_id])")
     p.add_argument("--theme", default="MBR Terminal")
-    p.add_argument("--rootfs", default="/run/media/deck/ROOTFS", help="partizione di sistema di muOS montata")
+    p.add_argument("--rootfs", default=DEFAULT_ROOTFS, help="partizione di sistema di muOS montata")
     p = add("install-previews", cmd_install_previews, "anteprime MP4: copertina + brano, suonano mentre scorri", apply=True)
     p.add_argument("--media", required=True, help="cartella con i file audio/video dei brani (nome con [video_id])")
     p.add_argument("--covers", default=str(BUILD / "covers"))

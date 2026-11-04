@@ -1,0 +1,32 @@
+#!/bin/sh
+# Lancia scripts/mbr.py con tutto quello che serve, preparato al primo uso dentro la repo
+# (niente sudo, niente installazioni nel sistema):
+#   .venv/   Python con Pillow e ffmpeg (pacchetto imageio-ffmpeg)
+#   .tools/  Node.js, solo se npx non c'e' gia' (serve a convertire il font del tema)
+set -e
+DIR=$(cd "$(dirname "$0")" && pwd)
+NODE_VERSION=v22.11.0
+
+if [ ! -x "$DIR/.venv/bin/python" ] || ! "$DIR/.venv/bin/python" -c "import PIL, imageio_ffmpeg" 2>/dev/null; then
+    echo "Preparo Python (Pillow, ffmpeg) in $DIR/.venv ..."
+    python3 -m venv "$DIR/.venv"
+    "$DIR/.venv/bin/python" -m pip install -q --disable-pip-version-check pillow imageio-ffmpeg
+fi
+
+if ! command -v npx >/dev/null 2>&1; then
+    case "$(uname -m)" in
+        x86_64) ARCH=x64 ;;
+        aarch64|arm64) ARCH=arm64 ;;
+        *) echo "Node.js non disponibile per $(uname -m): installalo a mano."; exit 1 ;;
+    esac
+    NODE="$DIR/.tools/node-$NODE_VERSION-linux-$ARCH"
+    if [ ! -x "$NODE/bin/npx" ]; then
+        echo "Scarico Node.js $NODE_VERSION in $DIR/.tools ..."
+        mkdir -p "$DIR/.tools"
+        curl -fsSL "https://nodejs.org/dist/$NODE_VERSION/node-$NODE_VERSION-linux-$ARCH.tar.gz" | tar -xz -C "$DIR/.tools"
+    fi
+    PATH="$NODE/bin:$PATH"
+    export PATH
+fi
+
+exec "$DIR/.venv/bin/python" "$DIR/scripts/mbr.py" "$@"

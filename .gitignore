@@ -9,3 +9,8 @@ ROMS_HIDDEN/
 
 # asset creati dal progetto (tema senza loghi, suoni e font dell artista)
 !assets/**
+
+# preparati da ./mbr e file personali (font, loghi, brani)
+.venv/
+.tools/
+miei-file/
