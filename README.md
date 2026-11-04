@@ -74,6 +74,41 @@ I file dei brani in `cartella_brani` vengono riconosciuti se il nome contiene il
 - Il menu principale ha 8 voci fisse: il kiosk le blocca ma non le nasconde, e B dalla collezione torna sempre li'.
 - L'emulatore di una cartella viene assegnato da solo solo aprendola nell'esploratore. Per le cartelle nuove usate dal kiosk va scritto a mano `share/info/content/<CARTELLA>/core.cfg`.
 
+## Rifare la scheda da zero
+
+Tutto il lavoro sta in due posti:
+
+- **questo repository**: i comandi e le configurazioni;
+- **un kit privato**, cioè una cartella tua, mai su GitHub, con i giochi, i brani, le copertine, il tema completo, i loghi e le impostazioni di muOS.
+
+**Creare il kit**, dalla scheda che funziona (circa 3,3 GB):
+
+```bash
+python3 scripts/mbr.py export-kit --apply      # crea ~/mbr-kit (cambiabile con --out)
+```
+
+Aggiungi l'immagine di muOS: con `--image MustardOS_...img.gz`, oppure copiala tu in `~/mbr-kit/muos/`. Il kit va conservato su un disco esterno o su un cloud privato.
+
+**Preparare una scheda nuova**, con 3 comandi e un avvio nella console:
+
+```bash
+git clone https://github.com/fdamore1984/mbr-anbernic && cd mbr-anbernic
+scripts/make-sd.sh flash /dev/mmcblk0 ~/mbr-kit   # scrive muOS (cancella la scheda, chiede conferma)
+#   -> scheda nell'Anbernic, accendi, aspetta il menu di muOS, spegni, rimettila nel computer
+scripts/make-sd.sh setup ~/mbr-kit                # giochi, brani, tema, loghi, kiosk
+```
+
+Il primo avvio nella console serve perché muOS allarghi le partizioni e crei le sue cartelle.
+
+Note su `make-sd.sh`:
+
+- `flash` si rifiuta di scrivere su un disco non rimovibile o su una singola partizione, e chiede di riscrivere il nome del disco prima di cancellarlo.
+- `setup` riconosce le partizioni dalle etichette (`MustardOS`, `BOOT`, `ROOTFS`) e alla fine le smonta tutte.
+- Le modifiche alla partizione di sistema passano da `sudo` e lasciano `build/kit-rootfs-undo.sh` per tornare indietro.
+- Copia soltanto file: non servono Pillow, ffmpeg o Node.
+
+Il kit vale per la versione di muOS con cui è stato creato (scritta in `KIT.json`). Con una versione nuova di muOS, prova prima su una scheda di riserva.
+
 ## Su un'altra Anbernic
 
 1. Monta la scheda e lancia `check`: elenca i giochi che non trova con quel nome esatto.

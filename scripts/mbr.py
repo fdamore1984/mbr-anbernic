@@ -725,6 +725,20 @@ def cmd_install_sounds(a):
     return 0
 
 
+# ------------------------------------------------------------- export-kit / install-kit
+
+def cmd_export_kit(a):
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import kit
+    return kit.export_kit(a, kept(), load_json(MUOS_FILE), KIOSK, a.theme)
+
+
+def cmd_install_kit(a):
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import kit
+    return kit.install_kit(a, BUILD)
+
+
 # ------------------------------------------------------------------------ main
 
 def main():
@@ -777,6 +791,16 @@ def main():
     p.add_argument("--size", default="272x204", help="misura del video: lo spazio a destra della lista (default: %(default)s)")
     p.add_argument("--force", action="store_true", help="rigenera anche gli MP4 gia' pronti")
     add("install-names", cmd_install_names, "scrive i titoli dei brani come nomi dei giochi", apply=True)
+    p = add("export-kit", cmd_export_kit, "copia dalla scheda tutto il necessario in un kit privato", apply=True)
+    p.add_argument("--out", default=str(Path.home() / "mbr-kit"), help="cartella del kit (default: %(default)s)")
+    p.add_argument("--boot", default=DEFAULT_BOOT)
+    p.add_argument("--rootfs", default="/run/media/deck/ROOTFS")
+    p.add_argument("--image", help="immagine di muOS (.img.gz) da includere nel kit")
+    p.add_argument("--theme", default="MBR Terminal")
+    p = add("install-kit", cmd_install_kit, "rimette il kit su una scheda appena preparata", apply=True)
+    p.add_argument("--kit", required=True, help="cartella del kit")
+    p.add_argument("--boot", default=DEFAULT_BOOT)
+    p.add_argument("--rootfs", default="/run/media/deck/ROOTFS")
     p = add("theme-dump", cmd_theme_dump, "descrive un tema muOS esistente da usare come modello")
     p.add_argument("--name", help="nome del tema (senza: elenca i temi installati)")
     p.add_argument("--max-kb", type=int, default=300, help="tetto ai file di testo inclusi (default: %(default)s)")
